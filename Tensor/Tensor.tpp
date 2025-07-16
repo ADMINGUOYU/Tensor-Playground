@@ -245,24 +245,6 @@ Tensor<T> Tensor<T>::get_val_in_dims(int *dims, int num_dims, bool delete_flag) 
 }
 
 template <typename T>
-Tensor<T> Tensor<T>::mat_mul(const Tensor<T> &other) const
-{
-    Tensor<T> to_return = (*this);
-    if (!this->m_info.multipliable(other.m_info))
-    {
-        printf("Incompatible for matrix multiplication: ");
-        this->m_info.print_dim_only();
-        printf(" * ");
-        other.m_info.print_dim_only();
-        putchar('\n');
-        return to_return;
-    }
-    
-    /* incomplete */
-    return to_return;
-}
-
-template <typename T>
 void Tensor<T>::init_to_value(T val)
 {
     for (int i = 0; i < this->m_info.get_num_of_params(); ++i)
@@ -309,6 +291,90 @@ Tensor<T> &Tensor<T>::set_val(int *dims, int num_dims, T val, bool delete_flag)
 }
 
 template <typename T>
+Tensor<T> &Tensor<T>::op_inplace(const T &val, Op op)
+{
+    switch (op)
+    {
+    case Op::ADD:
+        for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] += val;
+        break;
+    case Op::SUB:
+        for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] -= val;
+        break;
+    case Op::MUL:
+        for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] *= val;
+        break;
+    case Op::DIV:
+        for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] /= val;
+        break;
+    default:
+        break;
+    }
+    return (*this);
+}
+
+template <typename T>
+Tensor<T> &Tensor<T>::op_inplace(const Tensor<T> &val, Op op)
+{
+    // shall not be empty
+    if (!this->m_info.get_num_of_params()) 
+    {
+        printf("[Warning] Empty tensor.\n");
+        return (*this);
+    }
+    // shall have same number of parameters
+    if (this->m_info.get_num_of_params() != val.m_info.get_num_of_params())
+    {
+        printf("[Warning] Op cannot be executed, parameter number does not match.\n");
+        return (*this);
+    }
+    // check if same shape (print warning)
+    if (!this->m_info.equal(val.m_info))
+    {
+        printf("[Warning] Dimension does not match ");
+        this->m_info.print_dim_only();
+        printf(" (%c) ", op);
+        val.m_info.print_dim_only();
+        printf(". Unexpected result may occur.\n");
+    }
+    // Op one by one
+    switch (op)
+    {
+    case Op::ADD:
+        for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] += val.m_data[i];
+        break;
+    case Op::SUB:
+        for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] -= val.m_data[i];
+        break;
+    case Op::MUL:
+        for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] *= val.m_data[i];
+        break;
+    case Op::DIV:
+        for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] /= val.m_data[i];
+        break;
+    default:
+        break;
+    }
+    return (*this);
+}
+
+template <typename T>
+Tensor<T> Tensor<T>::op(const T &val, Op op) const
+{
+    Tensor<T> to_return { *this };
+    to_return.op_inplace(val, op);
+    return (to_return);
+}
+
+template <typename T>
+Tensor<T> Tensor<T>::op(const Tensor<T> &val, Op op) const
+{
+    Tensor<T> to_return { *this };
+    to_return.op_inplace(val, op);
+    return (to_return);
+}
+
+template <typename T>
 bool Tensor<T>::equal(const Tensor<T> &other) const
 {
     if (this == &other) return true;
@@ -321,18 +387,66 @@ bool Tensor<T>::equal(const Tensor<T> &other) const
 }
 
 template <typename T>
-Tensor<T> Tensor<T>::operator+(const T &val)
+Tensor<T> Tensor<T>::neg_inplace(void)
 {
-    Tensor<T> to_return { *this };
-    for (int i = 0; i < to_return.m_info.get_num_of_params(); ++i)
-        to_return.m_data[i] += val;
-    return (to_return);
+    for (int i = 0; i < this->m_info.get_num_of_params(); ++i) this->m_data[i] = -this->m_data[i];
+    return(*this);
 }
 
 template <typename T>
-Tensor<T> & Tensor<T>::operator+=(const T &val)
+Tensor<T> Tensor<T>::neg(void) const
 {
-    for (int i = 0; i < this->m_info.get_num_of_params(); ++i)
-        this->m_data[i] += val;
+    Tensor<T> to_return { *this };
+    to_return.neg_inplace();
+    return (to_return);
+}
+/*
+template <typename T>
+Tensor<T> Tensor<T>::mat_mul(const Tensor<T> &val)
+{
+    // determine mode (scalar or mat)
+    enum mode { one_one, two_two, one_two, two_one };
+
+    // calculate working dimension
+    int dim_left_start = (dim_1 == -1) ? this->m_info.get_num_of_dims() - 2 : dim_1;
+    int dim_right_start = (dim_2 == -1) ? val.get_num_of_dims() - 2 : dim_2;
+    // error checking
+    if (
+        (dim_left_start < 0)
+        ||
+        (dim_left_start + 1 >= this->m_info.get_num_of_dims())
+        ||
+        (dim_right_start < 0)
+        ||
+        (dim_right_start + 1 >= val.get_num_of_dims())
+    )
+    {
+        printf("[Warning] Op cannot be executed, dimension must be greater than 2.\n");
+        return (*this);
+    }
+    // now check if mat mul can be performed
+    int * dims_left = this->m_info.get_copy_of_dims();
+    int * dims_right = val.m_info.get_copy_of_dims();
+    int row_left = dims_left[dim_left_start];
+    int col_left = dims_left[dim_left_start + 1];
+    int row_right = dims_right[dim_right_start];
+    int col_right = dims_right[dim_right_start + 1];
+    if (!((row_left == col_right) && (col_left == row_right)))
+    {
+        printf("[Warning] Op cannot be executed, dimension mismatch. [%d, %d] and [%d, %d].\n", 
+            row_left, col_left, row_right, col_right);
+        return (*this);
+    }
+    // check how many mat do we have
+    int num_left = (dim_left_start > 0) ? dims_left[dim_left_start - 1] : -1;
+    int num_right = 
+    // now we have to find a way to retrieve the data
+}
+
+template <typename T>
+Tensor<T> &Tensor<T>::mat_mul_inplace(const Tensor<T> &val)
+{
+    (*this) = this->mat_mul(val);
     return (*this);
 }
+*/

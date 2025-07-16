@@ -152,6 +152,14 @@ public:
 
     const int* get_dims(void) const { return this->m_dims; }
 
+    int* get_copy_of_dims(void) const
+    {
+        if (!this->m_dims) return nullptr;
+        int * to_return = new int [this->m_num_of_dims] { };
+        for (int i = 0; i < this->m_num_of_dims; ++i) to_return[i] = this->m_dims[i];
+        return to_return;
+    }
+
     int get_num_of_dims(void) const { return this->m_num_of_dims; }
 
     int get_num_of_params(void) const { return this->m_num_of_params; }
@@ -215,6 +223,65 @@ public:
         return true;
     }
 
+    void squeeze(int dim = -1)
+    {
+        if (!this->m_dims) return;
+        if (dim < 0)
+        {
+            // squeeze all
+            int num_to_squeeze = 0;
+            for (int i = 0; i < this->m_num_of_dims; ++i)
+                if (this->m_dims[i] == 1) ++num_to_squeeze;
+            if (!num_to_squeeze) return;
+            int * new_dims = new int [this->m_num_of_dims - num_to_squeeze] { };
+            for (int i = 0, j = 0; i < this->m_num_of_dims; ++i)
+                if (this->m_dims[i] != 1)
+                {
+                    new_dims[j] = this->m_dims[i];
+                    ++j;
+                }
+            delete [] this->m_dims;
+            this->m_dims = new_dims;
+            this->m_num_of_dims = this->m_num_of_dims - num_to_squeeze;
+        }
+        else
+        {
+            if (dim >= this->m_num_of_dims) return;
+            if (this->m_dims[dim] != 1) return;
+            int * new_dims = new int [this->m_num_of_dims - 1] { };
+            for (int i = 0, j = 0; i < this->m_num_of_dims; ++i)
+                if (this->m_dims[i] != 1)
+                {
+                    new_dims[j] = this->m_dims[i];
+                    ++j;
+                }
+            delete [] this->m_dims;
+            this->m_dims = new_dims;
+            this->m_num_of_dims = this->m_num_of_dims - 1;
+        }
+        return;
+    }
+
+    void unsqueeze(int dim)
+    {
+        if (!this->m_dims) return;
+        if (dim >= 0)
+        {
+            int new_num_of_dim = (dim >= this->m_num_of_dims) ? dim + 1 : this->m_num_of_dims + 1;
+            int * new_dims = new int [new_num_of_dim] { };
+            for (int i = 0, j = 0; i < new_num_of_dim; ++i)
+            {
+                if (i == dim) { new_dims[i] = 1; continue;}
+                if (j < this->m_num_of_dims) { new_dims[i] = this->m_dims[j++]; continue; }
+                else new_dims[i] = 1;
+            }
+            delete [] this->m_dims;
+            this->m_dims = new_dims;
+            this->m_num_of_dims = new_num_of_dim;
+        }
+        return;
+    }
+
     idx_range get_index_range(int * dims, int num_dims, bool require_dim = false, bool delete_flag = true) const
     {
         /* this function returns the index range of a specific dimension */
@@ -273,6 +340,7 @@ public:
         // return
         return idx_range(start, end, dim);
     }
+
 public:
     /* operator */
     bool operator==(const dim_info& other) const { return this->equal(other); }

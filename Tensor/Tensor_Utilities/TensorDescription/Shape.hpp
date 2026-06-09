@@ -15,6 +15,176 @@
 
 namespace TENSOR_UTILITIES
 {
+    // Indexing generator
+    /**
+     * @brief Indexing structure generator for a given shape
+     *        This is a structure with a state if current indexing
+     *        This generator provides a next() function to advance
+     *        its internal state.
+     * 
+     * @note You can generate a indexing object from a helper function
+     *       in the Shape class. You are hold responsible to make sure the
+     *       Indexing object is still valid.
+     * 
+     * @note The the initial state is step 0, the maximum possible step
+     *       is (max_step - 1). You may want to use do-while loop
+     *       to not missing the initial state.
+     */
+    struct Indexer
+    {
+        // internal states
+        /* shape info */
+        size_t dim_count{0};
+        size_t * shape {nullptr};
+        /* current indexing state */
+        size_t * current_idx {nullptr};
+        /* step */
+        size_t step {0};
+        size_t max_step {0};
+
+    public:
+        // constructor and destructor
+        Indexer(void) = default;
+        ~Indexer(void)
+        {
+            // de-allocate memory for shape and current_idx
+            free(this->shape);
+            free(this->current_idx);
+            return;
+        }
+        // copy is not allowed since this is a stateful generator
+        Indexer(const Indexer & other) = delete;
+        // move constructor
+        Indexer(Indexer && other)
+            :   dim_count(other.dim_count),
+                shape(other.shape),
+                current_idx(other.current_idx),
+                step(other.step),
+                max_step(other.max_step)
+        {
+            // reset the other object to prevent double free
+            other.dim_count = 0;
+            other.shape = nullptr;
+            other.current_idx = nullptr;
+            other.step = 0;
+            other.max_step = 0;
+            return;
+        }
+
+    public:
+        // next() function to advance the internal state
+        /**
+         * @brief Advances the internal state to the next k indexing.
+         * @param k The number of steps to advance.
+         * @param prev Whether to advance to the previous indexing instead
+         *        of the next indexing.
+         * @return True if successfully advanced to the next indexing,
+         *         false if we have reached the end of indexing.
+         */
+        bool next(size_t k, bool prev = false)
+        {
+            // move forward
+            if (!prev)
+            {
+                // if step + k exceeds max_step, we cannot advance
+                if (this->step + k >= this->max_step)
+                    return false;
+
+                // advance the current_idx by k steps
+                // we add k to the last dimension and
+                // carry over if it exceeds the shape
+                for (size_t i = this->dim_count; i > 0; --i)
+                // we do this since size_t is unsigned
+                {
+                    size_t dim_idx = i - 1;
+                    this->current_idx[dim_idx] += k;
+                    if (this->current_idx[dim_idx] < this->shape[dim_idx])
+                        // no carry over needed, break
+                        break;
+                    else
+                    {
+                        // carry over needed, calculate the carry and update current dimension
+                        size_t carry = this->current_idx[dim_idx] / this->shape[dim_idx];
+                        this->current_idx[dim_idx] = this->current_idx[dim_idx] % this->shape[dim_idx];
+                        // add the carry to the next dimension in the next iteration
+                        k = carry;
+                    }
+                }
+                // increase step by k
+                this->step += k;
+                return true;
+            }
+            // move backward
+            else
+            {
+                // if step is less than k, we cannot move backward
+                if (this->step < k)
+                    return false;
+
+                // move backward the current_idx by k steps
+                // we subtract k from the last dimension and
+                // borrow if it goes below 0
+                for (size_t i = this->dim_count; i > 0; --i)
+                {
+                    size_t dim_idx = i - 1;
+                    if (this->current_idx[dim_idx] >= k)
+                    // use comparison since size_t is unsigned
+                    {
+                        // no borrow needed, just subtract and break
+                        this->current_idx[dim_idx] -= k;
+                        break;
+                    }
+                    else
+                    {
+                        // borrow needed, calculate the borrow and update current dimension
+                        size_t borrow = (k - this->current_idx[dim_idx] + this->shape[dim_idx] - 1) / this->shape[dim_idx];
+                        this->current_idx[dim_idx] = (this->current_idx[dim_idx] + borrow * this->shape[dim_idx]) - k;
+                        // add the borrow to the next dimension in the next iteration
+                        k = borrow;
+                    }
+                }
+                // decrease step by k
+                this->step -= k;
+                return true;
+            }
+        }
+        /**
+         * @brief Advances the internal state to the next indexing.
+         * @return True if successfully advanced to the next indexing,
+         *         false if we have reached the end of indexing.
+         */
+        bool next(void)
+        {
+            return this->next(1);
+        }
+        /**
+         * @brief Resets the internal state to the initial indexing (all zeros).
+         */
+        void reset(void)
+        {
+            // reset current_idx to all zeros
+            for (size_t i = 0; i < this->dim_count; ++i)
+                this->current_idx[i] = 0;
+            // reset step to zero
+            this->step = 0;
+            return;
+        }
+        /**
+         * @brief Prints the current indexing state.
+         */
+        void print(void) const
+        {
+            printf("Current Indexing: ( ");
+            for (size_t i = 0; i < this->dim_count; ++i)
+                printf("%zu, ", this->current_idx[i]);
+            printf(")\n");
+            // flush stdout
+            fflush(stdout);
+            return;
+        }
+    };
+
+
     // predefine broadcast result structure
     // (for friend function return type) - prototype only
     struct Broadcast_result;
@@ -91,7 +261,7 @@ namespace TENSOR_UTILITIES
          * @note This will fresh set the shape info, any previous info will be cleared.
          *       Also, the stride info will be re-calculated based on the new shape info.
          */
-        bool set_shape (const size_t * const & shape_ptr, size_t count)
+        bool set_shape (const size_t * shape_ptr, size_t count)
         {
             // set shape info
             if (!this->m_shape.allocate(count))
@@ -126,7 +296,7 @@ namespace TENSOR_UTILITIES
          *        a permutation of (1, 0, 2) will change the shape to (2, 1, 3)
          *        [YOU HAVE TO MAKE SURE THE PERMUTATION IS VALID]
          */
-        bool permute (const size_t * const & permute_ptr)
+        bool permute (const size_t * permute_ptr)
         {
             // Get the number of dimensions (count)
             const size_t & count = this->m_shape.get_effective_item_count();
@@ -174,7 +344,7 @@ namespace TENSOR_UTILITIES
          *         [You can test whether we returned 0 but your index is not all 0]
          */
         size_t get_flattened_index
-        (const size_t * const & multi_idx_ptr, bool allow_broadcasting = false) const
+        (const size_t * multi_idx_ptr, bool allow_broadcasting = false) const
         {
             // get the number of dimensions (count)
             const size_t & count = this->m_shape.get_effective_item_count();
@@ -257,7 +427,7 @@ namespace TENSOR_UTILITIES
          * @param count The number of dimensions to squeeze (length of the dims array).
          * @return True if successful, false otherwise.
          */
-        bool squeeze (const size_t * const & dims, size_t dims_count)
+        bool squeeze (const size_t * dims, size_t dims_count)
         {
             // get the number of dimensions (count)
             const size_t & count = this->m_shape.get_effective_item_count();
@@ -347,7 +517,7 @@ namespace TENSOR_UTILITIES
          * @note Previous strids are preserved while the unsqueezed dimensions
          *       will have stride 1
          */
-        bool unsqueeze (const size_t * const & dims, size_t dims_count)
+        bool unsqueeze (const size_t * dims, size_t dims_count)
         {
             // get the number of dimensions (count)
             const size_t & count = this->m_shape.get_effective_item_count();
@@ -481,6 +651,62 @@ namespace TENSOR_UTILITIES
 
             // return
             return;
+        }
+
+        // utility: interaction with Indexer
+        /**
+         * @brief Generates an Indexer object for the current shape.
+         * @return The generated Indexer object.
+         */
+        Indexer generate_indexer (void) const
+        {
+            // get the number of dimensions (count)
+            const size_t & count = this->m_shape.get_effective_item_count();
+            // if count is 0, we return an empty Indexer
+            if (count == 0)
+                return Indexer { };
+            // create an Indexer object
+            Indexer indexer { };
+            // allocate memory for the shape and current_idx in the Indexer object
+            indexer.shape = (size_t*)malloc(count * sizeof(size_t));
+            indexer.current_idx = (size_t*)malloc(count * sizeof(size_t));
+            if (!indexer.shape || !indexer.current_idx)
+            {
+                // if memory allocation fails, free any allocated memory and return an empty Indexer
+                free(indexer.shape);
+                free(indexer.current_idx);
+                return Indexer { };
+            }
+            // copy the shape info to the Indexer object
+            for (size_t i = 0; i < count; ++i)
+                indexer.shape[i] = *(const size_t*)this->m_shape.get(i);
+            // initialize current_idx to all zeros
+            for (size_t i = 0; i < count; ++i)
+                indexer.current_idx[i] = 0;
+            // set the dimension count and max_step for the Indexer object
+            indexer.dim_count = count;
+            indexer.max_step = 1;
+            for (size_t i = 0; i < count; ++i)
+                indexer.max_step *= indexer.shape[i];
+            // initialize current_idx to all zeros
+            for (size_t i = 0; i < count; ++i)
+                indexer.current_idx[i] = 0;
+            // return the generated Indexer object
+            return indexer;
+        }
+        /**
+         * @brief get_flattened_index overload that directly takes an Indexer object
+         * @param indexer The Indexer object containing the current indexing state.
+         * @param allow_broadcasting Whether to allow broadcasting for dimensions with size 1.
+         * @return The flattened index if successful, 0 otherwise.
+         *         [YOU HAVE TO MAKE SURE THE INDEXER OBJECT IS VALID]
+         *         [You can test whether we returned 0 but your index is not all 0]
+         */
+        size_t get_flattened_index
+        (const Indexer & indexer, bool allow_broadcasting = false) const
+        {
+            // we simply call the original get_flattened_index function with the current_idx from the Indexer object
+            return this->get_flattened_index(indexer.current_idx, allow_broadcasting);
         }
 
     // Friend functions (utilities)

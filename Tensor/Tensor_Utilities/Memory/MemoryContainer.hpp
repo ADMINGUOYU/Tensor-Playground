@@ -184,7 +184,7 @@ namespace TENSOR_UTILITIES
             }
 
             // byte copier (will NOT check if the indexies are in range)
-            static void byte_copy(size_t start, size_t end, void *&dst, const void *const &src)
+            static void byte_copy(size_t start, size_t end, void * dst, const void * src)
             {
                 // convert pointers
                 unsigned char *dst_ptr = (unsigned char *)dst;
@@ -260,7 +260,7 @@ namespace TENSOR_UTILITIES
                 else
                 {
                     // checks if we have enough space (to copy)
-                    if (dst.eff_size < src.eff_size)
+                    if (dst.mem_size < src.eff_size)
                     {
                         // we have to re-allocate memory
                         // and remember to set identical to 0
@@ -269,7 +269,7 @@ namespace TENSOR_UTILITIES
                         Memory::allocate(src.mem_size, dst);
                     }
                     // now copy (Byte-by_Byte)
-                    Memory::byte_copy(identical, dst.eff_size, dst.ptr, src.ptr);
+                    Memory::byte_copy(identical, src.eff_size, dst.ptr, src.ptr);
                     dst.eff_size = src.eff_size;
                     return dst;
                 }

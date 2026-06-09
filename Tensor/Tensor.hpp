@@ -4,14 +4,14 @@
 #include <cstdio>
 #include <utility>
 #include <typeinfo>
-#include "dim_info.hpp"
+#include "Tensor_Utilities/Tensor_Utilities.hpp"
 
 template <typename T = float>
 class Tensor
 {
 private:
     T *m_data {};
-    dim_info m_info {};
+    Shape m_info {};
 
 public:
     /* constructors and destructors */
@@ -21,7 +21,7 @@ public:
     Tensor(int height, int width, int depth, T default_val = { });
     Tensor(int * dims, int num_dims, T default_val = { }, bool delete_flag = true);
     Tensor(const char * ctrl_str, T default_val = { });
-    Tensor(T *data, const dim_info & info, bool delete_flag = true);
+    Tensor(T *data, const Shape & info, bool delete_flag = true);
     ~Tensor(void);
 
     /* copy and move */
@@ -39,7 +39,7 @@ public:
     void print_as_vector(void) const;
     void print(void) const;
 
-    const dim_info & get_info(void) const { return this->m_info; }
+    const Shape & get_info(void) const { return this->m_info; }
     
 
 public:
@@ -47,7 +47,7 @@ public:
     Tensor<T> get_val_in_dims(int * dims, int num_dims, bool delete_flag = true) const;
     /* mutators */
     void init_to_value(T val);
-    bool set_dim(dim_info dim);
+    bool set_dim(Shape dim);
     void squeeze(int dim = -1) { this->m_info.squeeze(dim); }
     void unsqueeze(int dim) { this->m_info.unsqueeze(dim); }
     Tensor<T>& set_val(int idx, T val);

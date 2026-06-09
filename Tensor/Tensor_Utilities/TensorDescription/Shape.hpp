@@ -171,7 +171,7 @@ namespace TENSOR_UTILITIES
          /**
          * @brief Remove a index at given shape index.
          * @param end Whether to delete the end
-         * @param shape_idx Index of the item to remove; if end == false; invalid shape_idx will remove the end.
+         * @param shape_idx Index of the item to remove ONLY if end == false; invalid shape_idx will do nothing.
          * @return Nothing.
          */
         void remove_at (bool end = true, const size_t & shape_idx = 0)
@@ -179,23 +179,27 @@ namespace TENSOR_UTILITIES
             // get current count
             const size_t & effective_size_pre = this->m_shape.get_effective_item_count();
 
+            // check if shape_idx is valid
+            // if 'end' is set, we don't care about shape_idx
+            if ((!end) && ((shape_idx < 0) || (shape_idx >= effective_size_pre))) return;
+
             // set effective size
             this->m_shape.set_effective_size(effective_size_pre - 1);
 
-            // if end, we're done
-            if (end)
-                return;
+            // if not end, we have to move items forward
+            if (!end)
+            {
+                // we have to move items forward
+                // get ptr
+                size_t * ptr_shape = (size_t*)this->m_shape.get(0);
 
-            // if not, check shape_idx
-            if ((shape_idx < 0) || (shape_idx >= effective_size_pre)) return;
+                // move the numbers
+                for (size_t i = shape_idx; i < effective_size_pre - 1; ++i)
+                    ptr_shape[i] = ptr_shape[i + 1];
+            }
 
-            // we have to move items forward
-            // get ptr
-            size_t * ptr_shape = (size_t*)this->m_shape.get(0);
-
-            // move the numbers
-            for (size_t i = shape_idx; i < effective_size_pre - 1; ++i)
-                ptr_shape[i] = ptr_shape[i + 1];
+            // before return, shrink memory (if needed)
+            this->m_shape.shrink();
 
             // return
             return;

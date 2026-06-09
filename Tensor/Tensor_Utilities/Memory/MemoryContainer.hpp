@@ -2,7 +2,7 @@
 // Description: Class to manage storage and provide efficient
 //              operative interface.
 //				< Improved version. >
-// Date: Aug. 18, 2025
+// Date: June. 9, 2026
 // @ADMINGUOYU
 
 #ifndef _UTILS_MEMORY_CONTAINER_HPP_
@@ -42,22 +42,23 @@ namespace TENSOR_UTILITIES
         // initialize all allocated memory blocks
         virtual void init_all(void) = 0;
         // re-generate buffer
-        virtual bool allocate(const size_t &size) = 0;
+        virtual bool allocate(size_t size) = 0;
         // erase buffer (clears and de-allocates memory)
         virtual void erase(void) = 0;
         // append to buffer
-        virtual bool append(const void *const &item_ptr, bool expand_buffer = true, const size_t &expansion_ratio = BUFFER_EXPANSION_RATIO) = 0;
+        virtual bool append(const void *const &item_ptr, bool expand_buffer = true, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) = 0;
         // shrink (save storage)
-        virtual void shrink(const size_t &shrink_threshold = BUFFER_SHRINK_THRESHOLD, const size_t &expansion_ratio = BUFFER_EXPANSION_RATIO) = 0;
+        virtual void shrink(size_t shrink_threshold = BUFFER_SHRINK_THRESHOLD, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) = 0;
         // get item from buffer
-        virtual void *get(const size_t &idx) = 0;
+        virtual void *get(size_t idx) = 0;
+        virtual const void *get(size_t idx) const = 0;
         // set item
-        virtual bool set(const size_t &idx, const void *const &item_ptr) = 0;
+        virtual bool set(size_t idx, const void *const &item_ptr) = 0;
         // sets effective range (in count of items)
-        virtual bool set_effective_size(const size_t &item_count) = 0;
+        virtual bool set_effective_size(size_t item_count) = 0;
 
         // checks if the given index is in range (buffer size)
-        virtual bool idx_in_range(const size_t &sz) const = 0;
+        virtual bool idx_in_range(size_t sz) const = 0;
         // gets buffer size (in bytes)
         virtual size_t get_buffer_size(void) const = 0;
         // gets effective buffer size (in bytes)
@@ -90,7 +91,7 @@ namespace TENSOR_UTILITIES
             // allocation & de-allocation
         public:
             // static function for allocation (size in Byte)
-            static bool allocate(const size_t &size, Memory &memory)
+            static bool allocate(size_t size, Memory &memory)
             {
                 // de-allocate first
                 Memory::de_allocate(memory);
@@ -129,7 +130,7 @@ namespace TENSOR_UTILITIES
                 // numbers of identical (blocks) from the begining.
                 size_t num_identical;
 
-                Cmp_result(const Cmp &f, const size_t &s) : flag(f), num_identical(s) { return; }
+                Cmp_result(Cmp f, size_t s) : flag(f), num_identical(s) { return; }
 
                 // fast comparison operator
                 bool operator==(const bool &other) const
@@ -183,7 +184,7 @@ namespace TENSOR_UTILITIES
             }
 
             // byte copier (will NOT check if the indexies are in range)
-            static void byte_copy(const size_t &start, const size_t &end, void *&dst, const void *const &src)
+            static void byte_copy(size_t start, size_t end, void *&dst, const void *const &src)
             {
                 // convert pointers
                 unsigned char *dst_ptr = (unsigned char *)dst;
@@ -344,7 +345,7 @@ namespace TENSOR_UTILITIES
             return;
         }
         // re-generate buffer
-        bool allocate(const size_t &num_of_item) override
+        bool allocate(size_t num_of_item) override
         {
             if (num_of_item <= 0)
                 return false;
@@ -365,7 +366,7 @@ namespace TENSOR_UTILITIES
             return;
         }
         // append to buffer
-        bool append(const void *const &item_ptr, bool expand_buffer = true, const size_t &expansion_ratio = BUFFER_EXPANSION_RATIO) override
+        bool append(const void *const &item_ptr, bool expand_buffer = true, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) override
         {
             // get references of memory attributes
             size_t eff_sz = this->buffer.eff_size / this->dtype_size;
@@ -373,7 +374,7 @@ namespace TENSOR_UTILITIES
             // we have enough space
             if (eff_sz < mem_sz)
             {
-                ((T *)this->buffer.ptr)[eff_sz] = (*(T *)item_ptr);
+                ((T *)this->buffer.ptr)[eff_sz] = (*(const T *)item_ptr);
                 this->buffer.eff_size += this->dtype_size;
                 return true;
             }
@@ -392,7 +393,7 @@ namespace TENSOR_UTILITIES
             // copy memory blocks
             Buffer::Memory::byte_copy(0, eff_sz * this->dtype_size, new_buff.ptr, this->buffer.ptr);
             // append the value
-            ((T *)new_buff.ptr)[eff_sz] = (*(T *)item_ptr);
+            ((T *)new_buff.ptr)[eff_sz] = (*(const T *)item_ptr);
             // set new effective size
             new_buff.eff_size = this->buffer.eff_size + this->dtype_size;
 
@@ -404,7 +405,7 @@ namespace TENSOR_UTILITIES
             return true;
         }
         // shrink (save storage)
-        void shrink(const size_t &shrink_threshold = BUFFER_SHRINK_THRESHOLD, const size_t &expansion_ratio = BUFFER_EXPANSION_RATIO) override
+        void shrink(size_t shrink_threshold = BUFFER_SHRINK_THRESHOLD, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) override
         {
             // check if we need to shrink
             if (this->buffer.eff_size * shrink_threshold < this->buffer.mem_size)
@@ -432,24 +433,31 @@ namespace TENSOR_UTILITIES
             return;
         }
         // get item from buffer
-        void *get(const size_t &idx) override
+        void *get(size_t idx) override
         {
             if (!this->idx_in_range(idx))
                 return nullptr;
             T *ptr = ((T *)this->buffer.ptr) + idx;
             return ((void *)(ptr));
         }
+        const void *get(size_t idx) const override
+        {
+            if (!this->idx_in_range(idx))
+                return nullptr;
+            const T *ptr = ((const T *)this->buffer.ptr) + idx;
+            return ((const void *)(ptr));
+        }
         // set item
-        bool set(const size_t &idx, const void *const &item_ptr) override
+        bool set(size_t idx, const void *const &item_ptr) override
         {
             T *ptr = (T *)this->get(idx);
             if (!ptr)
                 return false;
-            *ptr = (*((T *)item_ptr));
+            *ptr = (*((const T *)item_ptr));
             return true;
         }
         // sets effective range (in count of items)
-        bool set_effective_size(const size_t &item_count) override
+        bool set_effective_size(size_t item_count) override
         {
             if (item_count < 0)
                 return false;
@@ -460,7 +468,7 @@ namespace TENSOR_UTILITIES
         }
 
         // checks if the given index is in range (buffer size)
-        bool idx_in_range(const size_t &idx) const override
+        bool idx_in_range(size_t idx) const override
         {
             if (!this->buffer.ptr)
                 return false;
@@ -557,6 +565,10 @@ namespace TENSOR_UTILITIES
     template <typename X>
     void move_assign(MemoryContainer<X> &dst, MemoryContainer<X> &&src)
     {
+        // we have to de-allocate the destination buffer
+        if (dst.buffer.ptr)
+            Buffer::Memory::de_allocate(dst.buffer);
+
         // copy assign memory attributes
         dst.buffer = src.buffer;
         // detach source

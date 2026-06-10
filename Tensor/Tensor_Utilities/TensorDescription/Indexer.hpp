@@ -50,6 +50,9 @@ namespace TENSOR_UTILITIES
         size_t step {0};
         size_t max_step {0};
 
+        /* stride */
+        size_t stride {1};  // defaults to 1
+
     private:
         // private constructor (only accessible by friend class Shape)
         Indexer(void) = default;
@@ -71,7 +74,8 @@ namespace TENSOR_UTILITIES
                 shape(other.shape),
                 current_idx(other.current_idx),
                 step(other.step),
-                max_step(other.max_step)
+                max_step(other.max_step),
+                stride(other.stride)
         {
             // reset the other object to prevent double free
             other.dim_count = 0;
@@ -80,6 +84,34 @@ namespace TENSOR_UTILITIES
             other.step = 0;
             other.max_step = 0;
             return;
+        }
+
+        // copy assignment is not allowed
+        const Indexer & operator= (const Indexer & other) = delete;
+        // move assignment
+        const Indexer & operator= (Indexer && other)
+        {
+            if (this != &other)
+            {
+                // de-allocate current resources
+                free(this->shape);
+                free(this->current_idx);
+                // move resources from other
+                this->dim_count = other.dim_count;
+                this->shape = other.shape;
+                this->current_idx = other.current_idx;
+                this->step = other.step;
+                this->max_step = other.max_step;
+                this->stride = other.stride;
+                // reset the other object to prevent double free
+                other.dim_count = 0;
+                other.shape = nullptr;
+                other.current_idx = nullptr;
+                other.step = 0;
+                other.max_step = 0;
+                other.stride = 1;
+            }
+            return *this;
         }
 
     // getter functions
@@ -100,6 +132,29 @@ namespace TENSOR_UTILITIES
         {
             return this->max_step;
         }
+        /**
+         * @brief Gets current stride
+         */
+        size_t get_stride(void) const
+        {
+            return this->stride;
+        }
+
+    // Setter function
+    public:
+        /**
+         * @brief Sets the stride for the indexing.
+         * @param stride The stride to set.
+         * @note  stride is defaulted to 1
+         *        call this without argument to reset stride
+         */
+        void set_stride(size_t stride = 1)
+        {
+            // stride 0 is not acceptble
+            if (stride > 0)
+                this->stride = stride;
+            return;
+        }
 
     public:
         // next() function to advance the internal state
@@ -113,6 +168,9 @@ namespace TENSOR_UTILITIES
          */
         bool next(size_t k, bool prev = false)
         {
+            // we calculate the actual step to move based on the stride
+            k *= this->stride;
+
             // move forward
             if (!prev)
             {

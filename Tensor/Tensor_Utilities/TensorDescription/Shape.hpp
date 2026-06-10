@@ -119,6 +119,28 @@ namespace TENSOR_UTILITIES
             return this->m_shape.get_effective_item_count();
         }
         /**
+         * @brief Get shape of a specified dimension.
+         * @param dim The dimension to get the shape (0-indexed).
+         * @return The shape of the specified dimension if successful,
+         *         0 otherwise.
+         */
+        size_t get_shape (size_t dim) const
+        {
+            const size_t * shape_ptr = (const size_t*)this->m_shape.get(dim);
+            return shape_ptr ? *shape_ptr : 0;
+        }
+        /**
+         * @brief Get stride of a specified dimension.
+         * @param dim The dimension to get the stride (0-indexed).
+         * @return The stride of the specified dimension if successful,
+         *         0 otherwise.
+         */
+        size_t get_stride (size_t dim) const
+        {
+            const size_t * stride_ptr = (const size_t*)this->m_stride.get(dim);
+            return stride_ptr ? *stride_ptr : 0;
+        }
+        /**
          * @brief Permutes the shape (updates the shape and stride info accordingly).
          * @return True if successful, false otherwise.
          * @note The permute_ptr have the correct length as the number of dimensions

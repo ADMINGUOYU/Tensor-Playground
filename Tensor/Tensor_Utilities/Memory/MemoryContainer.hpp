@@ -46,14 +46,14 @@ namespace TENSOR_UTILITIES
         // erase buffer (clears and de-allocates memory)
         virtual void erase(void) = 0;
         // append to buffer
-        virtual bool append(const void *const &item_ptr, bool expand_buffer = true, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) = 0;
+        virtual bool append(const void * item_ptr, bool expand_buffer = true, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) = 0;
         // shrink (save storage)
         virtual void shrink(size_t shrink_threshold = BUFFER_SHRINK_THRESHOLD, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) = 0;
         // get item from buffer
         virtual void *get(size_t idx) = 0;
         virtual const void *get(size_t idx) const = 0;
         // set item
-        virtual bool set(size_t idx, const void *const &item_ptr) = 0;
+        virtual bool set(size_t idx, const void * item_ptr) = 0;
         // sets effective range (in count of items)
         virtual bool set_effective_size(size_t item_count) = 0;
 
@@ -366,7 +366,7 @@ namespace TENSOR_UTILITIES
             return;
         }
         // append to buffer
-        bool append(const void *const &item_ptr, bool expand_buffer = true, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) override
+        bool append(const void * item_ptr, bool expand_buffer = true, size_t expansion_ratio = BUFFER_EXPANSION_RATIO) override
         {
             // get references of memory attributes
             size_t eff_sz = this->buffer.eff_size / this->dtype_size;
@@ -448,7 +448,7 @@ namespace TENSOR_UTILITIES
             return ((const void *)(ptr));
         }
         // set item
-        bool set(size_t idx, const void *const &item_ptr) override
+        bool set(size_t idx, const void * item_ptr) override
         {
             T *ptr = (T *)this->get(idx);
             if (!ptr)

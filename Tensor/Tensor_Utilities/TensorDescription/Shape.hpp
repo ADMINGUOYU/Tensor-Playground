@@ -134,11 +134,32 @@ namespace TENSOR_UTILITIES
          * @param dim The dimension to get the stride (0-indexed).
          * @return The stride of the specified dimension if successful,
          *         0 otherwise.
+         * @note we always recalculate the stride info based on the current
+         *       shape. -> O(n) complexity
+         *       this function is meant to assist slicing, so we have to
+         *       return based on the current shape
          */
         size_t get_stride (size_t dim) const
         {
-            const size_t * stride_ptr = (const size_t*)this->m_stride.get(dim);
-            return stride_ptr ? *stride_ptr : 0;
+            // get the number of dimensions (count)
+            const size_t & count = this->m_shape.get_effective_item_count();
+
+            // if dim is out of range, return 0
+            if (dim >= count)
+                return 0;
+
+            // loop calculate the stride
+            size_t stride = 1;
+            for (size_t i = count; i > 0; --i)
+            {
+                const size_t * shape_ptr = (const size_t*)this->m_shape.get(i - 1);
+                if (i - 1 == dim)
+                    return stride;
+                stride *= *shape_ptr;
+            }
+
+            // we should never reach here, but we return 0 just in case
+            return 0;
         }
         /**
          * @brief Permutes the shape (updates the shape and stride info accordingly).

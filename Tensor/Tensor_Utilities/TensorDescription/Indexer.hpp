@@ -9,7 +9,7 @@
 
 #include <cstdio>
 #include <cstddef>  // defines: size_t
-#include <cstdlib> // malloc(); free()
+#include <cstdlib>  // malloc(); free()
 
 namespace TENSOR_UTILITIES
 {

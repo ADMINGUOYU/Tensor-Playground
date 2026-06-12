@@ -8,16 +8,21 @@
 #ifndef _UTILS_MEMORY_CONTAINER_HPP_
 #define _UTILS_MEMORY_CONTAINER_HPP_
 
-#include "../Enum/Enum.hpp"
-#include <cstddef> // defines: size_t
+#include <cstddef>  // defines: size_t
 #include <cstdio>
 #include <iostream>
-#include <cstdlib> // malloc(); free()
-#include <utility> // std::move()
-#include <typeinfo>
+#include <cstdlib>  // malloc(); free()
+#include <utility>  // std::move()
+#include <typeinfo> // typeid()
+#include "../Enum/Enum.hpp"
 
-#define BUFFER_EXPANSION_RATIO 2
-#define BUFFER_SHRINK_THRESHOLD 2
+// if not defined (overriden), define these
+#ifndef BUFFER_EXPANSION_RATIO
+    #define BUFFER_EXPANSION_RATIO 2
+#endif
+#ifndef BUFFER_SHRINK_THRESHOLD
+    #define BUFFER_SHRINK_THRESHOLD 2
+#endif
 
 namespace TENSOR_UTILITIES
 {

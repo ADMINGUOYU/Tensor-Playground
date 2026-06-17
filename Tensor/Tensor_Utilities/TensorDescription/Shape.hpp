@@ -162,6 +162,26 @@ namespace TENSOR_UTILITIES
             return 0;
         }
         /**
+         * @brief Get total item count of the shape
+         * @return The total item count (product of all dimensions)
+         */
+        size_t get_item_count (void) const
+        {
+            // get the number of dimensions (count)
+            const size_t & count = this->m_shape.get_effective_item_count();
+
+            // loop calculate the total item count
+            size_t total_count = 1;
+            for (size_t i = 0; i < count; ++i)
+            {
+                const size_t * shape_ptr = (const size_t*)this->m_shape.get(i);
+                total_count *= *shape_ptr;
+            }
+
+            // return
+            return total_count;
+        }
+        /**
          * @brief Permutes the shape (updates the shape and stride info accordingly).
          * @return True if successful, false otherwise.
          * @note The permute_ptr have the correct length as the number of dimensions
@@ -561,9 +581,7 @@ namespace TENSOR_UTILITIES
                 indexer.current_idx[i] = 0;
             // set the dimension count and max_step for the Indexer object
             indexer.dim_count = count;
-            indexer.max_step = 1;
-            for (size_t i = 0; i < count; ++i)
-                indexer.max_step *= indexer.shape[i];
+            indexer.max_step = this->get_item_count();
             // initialize current_idx to all zeros
             for (size_t i = 0; i < count; ++i)
                 indexer.current_idx[i] = 0;

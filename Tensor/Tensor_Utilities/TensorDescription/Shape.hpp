@@ -170,6 +170,10 @@ namespace TENSOR_UTILITIES
             // get the number of dimensions (count)
             const size_t & count = this->m_shape.get_effective_item_count();
 
+            // if it's empty, return 0
+            if (count == 0)
+                return 0;
+
             // loop calculate the total item count
             size_t total_count = 1;
             for (size_t i = 0; i < count; ++i)
@@ -195,7 +199,7 @@ namespace TENSOR_UTILITIES
         {
             // Get the number of dimensions (count)
             const size_t & count = this->m_shape.get_effective_item_count();
-            
+
             // We create a new shape and stride instead of inplace modification
             MemoryContainer<size_t> new_shape { };
             MemoryContainer<size_t> new_stride { };
@@ -416,6 +420,10 @@ namespace TENSOR_UTILITIES
         {
             // get the number of dimensions (count)
             const size_t & count = this->m_shape.get_effective_item_count();
+
+            // if count is 0, we cannot unsqueeze
+            if (count == 0)
+                return false;
 
             // we create new shape and stride instead of inplace modification
             MemoryContainer<size_t> new_shape { };

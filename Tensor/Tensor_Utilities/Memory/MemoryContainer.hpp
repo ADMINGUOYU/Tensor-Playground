@@ -10,7 +10,6 @@
 
 #include <cstddef>  // defines: size_t
 #include <cstdio>
-#include <iostream>
 #include <cstdlib>  // malloc(); free()
 #include <utility>  // std::move()
 #include <typeinfo> // typeid()
@@ -22,6 +21,20 @@
 #endif
 #ifndef BUFFER_SHRINK_THRESHOLD
     #define BUFFER_SHRINK_THRESHOLD 2
+#endif
+
+// macro for buffer printing, define BUFFER_PRINT_ITEM
+// if you want to print the items in the buffer (for debugging)
+// this requires <iostream> library
+// define BUFFER_PRINT_ITEM_PER_LINE to specify how many items
+// to print per line (default is 10)
+#ifdef BUFFER_PRINT_ITEM
+    // include std library
+    #include <iostream>
+    // define items per line
+    #ifndef BUFFER_PRINT_ITEM_PER_LINE
+        #define BUFFER_PRINT_ITEM_PER_LINE 10
+    #endif
 #endif
 
 namespace TENSOR_UTILITIES
@@ -500,11 +513,13 @@ namespace TENSOR_UTILITIES
             const size_t &eff_sz = this->buffer.eff_size / this->dtype_size;
             printf("Buffer info:\n\t[PTR ADDR] %p\n\t[BUF SIZE] %zu byte(s)\n\t[EFF SIZE] %zu byte(s)\n", this->buffer.ptr, this->buffer.mem_size, this->buffer.eff_size);
             printf("Container info:\n\t[BUF ITEM] %zu\n\t[EFF ITEM] %zu\n", mem_sz, eff_sz);
+// print items if needed
+#ifdef BUFFER_PRINT_ITEM
             const T *ptr = (const T *)this->buffer.ptr;
             printf("\t[Memory]");
             for (size_t i = 0; i < eff_sz; ++i)
             {
-                if (!(i % 10))
+                if (!(i % BUFFER_PRINT_ITEM_PER_LINE))
                     printf("\n\t");
                 std::cout << ptr[i];
                 putchar(' ');
@@ -513,12 +528,13 @@ namespace TENSOR_UTILITIES
             printf("\t[Extras]");
             for (size_t i = eff_sz; i < mem_sz; ++i)
             {
-                if (!((i - eff_sz) % 10))
+                if (!((i - eff_sz) % BUFFER_PRINT_ITEM_PER_LINE))
                     printf("\n\t");
                 std::cout << ptr[i];
                 putchar(' ');
             }
             putchar('\n');
+#endif
             return;
         }
 

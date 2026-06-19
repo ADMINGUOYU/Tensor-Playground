@@ -61,6 +61,8 @@ namespace TENSOR_UTILITIES
         virtual void init_all(void) = 0;
         // re-generate buffer
         virtual bool allocate(size_t size) = 0;
+        // adjust size of buffer (if failed, the memory remains untouched)
+        virtual bool re_allocate(size_t size) = 0;
         // erase buffer (clears and de-allocates memory)
         virtual void erase(void) = 0;
         // append to buffer
@@ -396,6 +398,17 @@ namespace TENSOR_UTILITIES
             Buffer::Memory::allocate(num_of_item * this->dtype_size, this->buffer);
             // error checking
             if (this->buffer.ptr)
+                return true;
+            else
+                return false;
+        }
+        // adjust size of buffer (if failed, the memory remains untouched)
+        bool re_allocate(size_t num_of_item) override
+        {
+            if (num_of_item <= 0)
+                return false;
+            // reallocate
+            if (Buffer::Memory::re_allocate(num_of_item * this->dtype_size, this->buffer))
                 return true;
             else
                 return false;

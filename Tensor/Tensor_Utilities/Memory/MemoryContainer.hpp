@@ -2,7 +2,7 @@
 // Description: Class to manage storage and provide efficient
 //              operative interface.
 //				< Improved version. >
-// Date: June. 9, 2026
+// Date: June. 19, 2026
 // @ADMINGUOYU
 
 #ifndef _UTILS_MEMORY_CONTAINER_HPP_
@@ -136,6 +136,31 @@ namespace TENSOR_UTILITIES
                 memory.eff_size = 0;
                 // return
                 return;
+            }
+            // static function to reallocate (should be faster)
+            static bool re_allocate(size_t size, Memory &memory)
+            {
+                /*
+                NOTE:
+                If there is not enough memory, the old memory block
+                is not freed and null pointer is returned.
+                If ptr is NULL, the behavior is the same as calling malloc(new_size)
+                */
+
+                // try reallocate buffer
+                void * realloc_ptr = realloc(memory.ptr, size);
+                // error checking
+                if (!realloc_ptr)
+                    return false;
+                // update memory pointer
+                memory.ptr = realloc_ptr;
+                // update other attributes
+                memory.mem_size = size;
+                if (memory.eff_size > size)
+                    memory.eff_size = size;
+                    // else, we don't update
+                // return
+                return true;
             }
 
             // utilities
@@ -401,24 +426,18 @@ namespace TENSOR_UTILITIES
             if (!expand_buffer)
                 return false;
 
-            // create a new buffer description
-            Buffer::Memory new_buff{};
             // allocate enough memory (with expansion)
             if (mem_sz == 0)
                 mem_sz = 1;
-            if (!Buffer::Memory::allocate((mem_sz * expansion_ratio * this->dtype_size), new_buff))
+            // re-allocate
+            if (!Buffer::Memory::re_allocate((mem_sz * expansion_ratio * this->dtype_size), this->buffer))
                 return false;
-            // copy memory blocks
-            Buffer::Memory::byte_copy(0, eff_sz * this->dtype_size, new_buff.ptr, this->buffer.ptr);
+            
             // append the value
-            ((T *)new_buff.ptr)[eff_sz] = (*(const T *)item_ptr);
+            ((T *)this->buffer.ptr)[eff_sz] = (*(const T *)item_ptr);
             // set new effective size
-            new_buff.eff_size = this->buffer.eff_size + this->dtype_size;
+            this->buffer.eff_size += this->dtype_size;
 
-            // de-allocate old memory
-            Buffer::Memory::de_allocate(this->buffer);
-            // set to the new memory description
-            this->buffer = new_buff;
             // return
             return true;
         }
@@ -429,22 +448,10 @@ namespace TENSOR_UTILITIES
             if (this->buffer.eff_size * shrink_threshold < this->buffer.mem_size)
             {
                 // shrink
-                if (this->buffer.eff_size == 0)
-                {
-                    Buffer::Memory::de_allocate(this->buffer);
-                    return;
-                }
-                Buffer::Memory new_buff{};
-                if (!Buffer::Memory::allocate(this->buffer.eff_size * expansion_ratio * this->dtype_size, new_buff))
-                    return;
-                // copy memory blocks
-                Buffer::Memory::byte_copy(0, this->buffer.eff_size * this->dtype_size, new_buff.ptr, this->buffer.ptr);
-                // set new effective size
-                new_buff.eff_size = this->buffer.eff_size;
-                // de-allocate old memory
-                Buffer::Memory::de_allocate(this->buffer);
-                // assign the new memory description
-                this->buffer = new_buff;
+                if (this->buffer.eff_size == 0) { this->erase(); return; }
+                if (!Buffer::Memory::re_allocate(this->buffer.eff_size * expansion_ratio * this->dtype_size, this->buffer))
+                    return;  // actually this return does not matter
+                // effective size is updated by Buffer::Memory::re_allocate
                 // return
                 return;
             }

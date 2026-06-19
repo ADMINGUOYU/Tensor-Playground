@@ -56,7 +56,7 @@ namespace TENSOR_UTILITIES
             return (*this);
         }
 
-        // public functions (accessors)
+        // public functions API
         /**
          * @brief Reset permutation to original (non-permuted) state.
          * @return True if successful, false otherwise.

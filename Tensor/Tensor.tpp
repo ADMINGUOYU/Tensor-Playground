@@ -710,7 +710,7 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
             printf(format_str, precision, ptr);
 
         // CHECK IF WE ARE GOING TO INDENT
-        for (ptrdiff_t j = (ptrdiff_t)(dimension_count - 1);
+        for (ptrdiff_t j = ((ptrdiff_t)(dimension_count) - 1);
             j > -1;
             --j)
         {

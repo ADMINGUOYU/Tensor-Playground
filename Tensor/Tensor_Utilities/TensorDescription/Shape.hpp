@@ -449,9 +449,15 @@ namespace TENSOR_UTILITIES
                 if (dim_idx < dims_count &&
                     old_idx == *(dims + dim_idx))
                 {
-                    // insert a new dimension with size 1 and stride 1
+                    // insert a new dimension with size 1 and
+                    // the right neighbour's stride
                     new_shape.set(new_idx, &one);
-                    new_stride.set(new_idx, &one);
+                    if (old_idx < count)  // have right neighbour
+                        // Get right neighbour's stride
+                        new_stride.set(new_idx, this->m_stride.get(old_idx));
+                    else  // already the end
+                        new_stride.set(new_idx, &one);
+                    // increment new index
                     ++new_idx;
                     // move to the next dimension in the dims array
                     // if over shoot, we will never enter this branch again

@@ -6,8 +6,10 @@
 
 // Include the header file for the Tensor class template
 #include "Tensor.hpp"
+// Include memory container
+#include "Tensor_Utilities/Memory/MemoryContainer.hpp"
 // include used standard libraries
-#include <cstddef>  // defines: size_t; ptrdiff_t
+#include <cstddef>  // defines: size_t
 #include <utility>  // std::move()
 #include <typeinfo> // typeid()
 #include <cstdio>   // prinf()
@@ -212,6 +214,8 @@ inline bool ty::Tensor<T>::set_as(const size_t flatted_index, TENSOR_CONVERSION_
         return false;
     // assign the value
     *ptr = static_cast<T>(value);
+    // return
+    return true;
 }
 
 /**
@@ -263,7 +267,7 @@ inline const void *ty::Tensor<T>::data(const size_t *multi_idx_ptr) const
         for (size_t i = 0; i < count; ++i)
             // flatted_index is 0 only when all indexes are 0
             if (multi_idx_ptr != 0)
-                return nullptr
+                return nullptr;
     }
     // get the memory location
     return this->data(flatted_index);
@@ -276,8 +280,9 @@ inline const void *ty::Tensor<T>::data(const size_t *multi_idx_ptr) const
 template <typename T>
 inline const void *ty::Tensor<T>::data(const TENSOR_UTILITIES::Indexer &indexer) const
 {
-    // we still make the out-of-bound check (we do not know if this is the right indexer)
-    return this->data(indexer.current_idx)
+    // we now believe in the Indexer
+    // no more boundary check
+    return this->data(this->m_shape.get_flattened_index(indexer));
 }
 
 /**
@@ -394,7 +399,7 @@ inline bool ty::Tensor<T>::reshape_like(const TENSOR_UTILITIES::Shape & shape)
 
     // We first check if we can create a view that does not
     // require copy of data, we don't want to call contiguous so fast
-    TENSOR_UTILITIES::Shape viewable = this->m_shape.viewable_as(new_shape);
+    TENSOR_UTILITIES::Shape viewable = this->m_shape.viewable_as(shape);
     // if viewable is not empty, we can just set the new shape to the viewable shape
     if (viewable.get_dim_count() != 0)
     {
@@ -453,11 +458,16 @@ inline bool ty::Tensor<T>::contiguous(void)
     if (!this->copy_to(tensor, true))
         return false;
 
-    // move back
-    *this = std::move(tensor);
+    /* Move everything from temp */
+    // move shape info
+    this->m_shape = std::move(tensor.m_shape);
+    // move tensor data
+    TENSOR_UTILITIES::move_assign(this->m_tensor_buff, std::move(tensor.m_tensor_buff));
+    // move contiguity state
+    this->m_contiguous = tensor.m_contiguous;
 
     // return true
-    return true
+    return true;
 }
 
 /**
@@ -479,7 +489,7 @@ inline void *ty::Tensor<T>::data(const size_t *multi_idx_ptr)
         for (size_t i = 0; i < count; ++i)
             // flatted_index is 0 only when all indexes are 0
             if (multi_idx_ptr != 0)
-                return nullptr
+                return nullptr;
     }
     // get the memory location
     return this->data(flatted_index);
@@ -492,8 +502,9 @@ inline void *ty::Tensor<T>::data(const size_t *multi_idx_ptr)
 template <typename T>
 inline void *ty::Tensor<T>::data(const TENSOR_UTILITIES::Indexer &indexer)
 {
-    // we still make the out-of-bound check (we do not know if this is the right indexer)
-    return this->data(indexer.current_idx)
+    // we now believe in the Indexer
+    // no more boundary check
+    return this->data(this->m_shape.get_flattened_index(indexer));
 }
 
 /**
@@ -512,6 +523,8 @@ inline bool ty::Tensor<T>::set_as(const size_t *multi_idx_ptr, TENSOR_CONVERSION
         return false;
     // assign the value
     *ptr = static_cast<T>(value);
+    // return
+    return true;
 }
 
 /**
@@ -530,6 +543,8 @@ inline bool ty::Tensor<T>::set_as(const TENSOR_UTILITIES::Indexer &indexer, TENS
         return false;
     // assign the value
     *ptr = static_cast<T>(value);
+    // return
+    return true;
 }
 
 /**
@@ -583,8 +598,13 @@ inline bool ty::Tensor<T>::allocate_like(const TENSOR_UTILITIES::Shape &shape)
     // set contiguity flag
     tensor.m_contiguous = true;
 
-    // move the temp tensor to this
-    *this = std::move(tensor);
+    /* Move everything from temp */
+    // move shape info
+    this->m_shape = std::move(tensor.m_shape);
+    // move tensor data
+    TENSOR_UTILITIES::move_assign(this->m_tensor_buff, std::move(tensor.m_tensor_buff));
+    // move contiguity state
+    this->m_contiguous = tensor.m_contiguous;
 
     // return
     return true;
@@ -676,10 +696,10 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
         // CHECK IF WE ARE GOING TO INDENT
         for (size_t j = 0; j < dimension_count; ++j)
         {
-            if ((i % num_of_interest[j]) == 0)
+            if ((i % indentation_mark[j]) == 0)
             {
                 // print indentation
-                for (int k = 0; k < indentation_count; ++k) printf(indentation);
+                for (size_t k = 0; k < indentation_count; ++k) printf("%s", indentation);
                 // print bracket (if last intrested dimension, use '[')
                 if (j == (dimension_count - 1))
                     printf("[ ");
@@ -687,7 +707,7 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
                 {
                     // check if next interested number is the same
                     // if so, we do not make a new line
-                    if (num_of_interest[j] == num_of_interest[j + 1])
+                    if (indentation_mark[j] == indentation_mark[j + 1])
                         printf("{");
                     else
                     {
@@ -705,16 +725,19 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
 
         // print value
         if (integer_type)
-            printf(format_str, ptr)
+            printf(format_str, ptr);
         else
             printf(format_str, precision, ptr);
 
         // CHECK IF WE ARE GOING TO INDENT
-        for (ptrdiff_t j = ((ptrdiff_t)(dimension_count) - 1);
-            j > -1;
-            --j)
+        for (size_t j_itr = dimension_count;
+            j_itr > 0;
+            --j_itr)
         {
-            if (((i + 1) % num_of_interest[j]) == 0)
+            // actual j
+            size_t j = j_itr - 1;
+
+            if (((i + 1) % indentation_mark[j]) == 0)
             {
                 // print bracket (if last intrested dimension, use ']')
                 if (j == (dimension_count - 1))
@@ -724,13 +747,13 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
                     // check if next interested number is the same
                     // if so, we do not make a new line
                     // since we have not made a new line when printing '{'
-                    if (num_of_interest[j] != num_of_interest[j + 1])
+                    if (indentation_mark[j] != indentation_mark[j + 1])
                     {
                         // prints new line if not
                         printf("\n");
                         // print indentation
                         --indentation_count;
-                        for (int k = 0; k < indentation_count; ++k) printf(indentation);
+                        for (size_t k = 0; k < indentation_count; ++k) printf("%s", indentation);
                     }
                     // finally, prints '}'
                     printf("},");

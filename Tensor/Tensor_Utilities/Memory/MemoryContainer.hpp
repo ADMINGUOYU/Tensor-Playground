@@ -13,7 +13,6 @@
 #include <cstdlib>  // malloc(); free()
 #include <utility>  // std::move()
 #include <typeinfo> // typeid()
-#include "../Enum/Enum.hpp"
 
 // if not defined (overriden), define these
 #ifndef BUFFER_EXPANSION_RATIO
@@ -170,6 +169,9 @@ namespace TENSOR_UTILITIES
             // comparison result
             struct Cmp_result
             {
+                // comparison flag ENUM
+                enum class Cmp { EQUAL = 0, NOT_EQUAL = 1 };
+
                 // result flag
                 Cmp flag;
                 // numbers of identical (blocks) from the begining.
@@ -189,7 +191,7 @@ namespace TENSOR_UTILITIES
             {
                 // if 'first' and 'other' is the same thing
                 if ((&first) == (&other))
-                    return Cmp_result{Cmp::EQUAL, first.mem_size};
+                    return Cmp_result{Cmp_result::Cmp::EQUAL, first.mem_size};
                 // check if both buffer have value
                 if (first.mem_size && other.mem_size)
                 {
@@ -211,21 +213,21 @@ namespace TENSOR_UTILITIES
                     {
                         if (dif >= first.eff_size)
                             // if number of same elements is beyond the effective range -> equal
-                            return Cmp_result{Cmp::EQUAL, dif};
+                            return Cmp_result{Cmp_result::Cmp::EQUAL, dif};
                         // else, not equal
                         else
-                            return Cmp_result{Cmp::NOT_EQUAL, dif};
+                            return Cmp_result{Cmp_result::Cmp::NOT_EQUAL, dif};
                     }
                     // not equal
-                    return Cmp_result{Cmp::NOT_EQUAL, dif};
+                    return Cmp_result{Cmp_result::Cmp::NOT_EQUAL, dif};
                 }
                 // if one or both does not have value
                 if (first.mem_size == other.mem_size)
                     // both are empty (return equal)
-                    return Cmp_result{Cmp::EQUAL, 0};
+                    return Cmp_result{Cmp_result::Cmp::EQUAL, 0};
                 // not both (return not equal)
                 else
-                    return Cmp_result{Cmp::NOT_EQUAL, 0};
+                    return Cmp_result{Cmp_result::Cmp::NOT_EQUAL, 0};
             }
 
             // byte copier (will NOT check if the indexies are in range)
@@ -262,7 +264,7 @@ namespace TENSOR_UTILITIES
                 // first, compare before copy
                 const Cmp_result &ret = Memory::byte_cmp(dst, src);
                 // if equal, do nothing and return
-                if (ret.flag == Cmp::EQUAL)
+                if (ret.flag == Cmp_result::Cmp::EQUAL)
                     return dst;
 
                 // now, actions have to be taken

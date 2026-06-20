@@ -51,6 +51,11 @@ namespace ty
         virtual bool set_as (const size_t flatted_index,
                              TENSOR_CONVERSION_INTERMEDIATE_TYPE value) = 0;
 
+        // Static helpers - access gateway
+        static bool invoke_set_as (_Tensor & target, size_t index, double value) { return target.set_as(index, value); }
+        static const void * invoke_data (const _Tensor & target, const size_t flatted_index) { return target.data(flatted_index); }
+        static void * invoke_data (_Tensor & target, const size_t flatted_index) { return target.data(flatted_index); }
+
     // basic public APIs
     public:
 

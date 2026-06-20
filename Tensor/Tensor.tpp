@@ -153,7 +153,7 @@ inline bool ty::Tensor<T>::copy_to(_Tensor &dest, bool make_contiguous) const
                 *((T*)this->m_tensor_buff.get(src_shape.get_flattened_index(src_indexer)))
             );
             // set value
-            dest.set_as(i, buff);
+            _Tensor::invoke_set_as(dest, i, buff);
             // move to the next index
             src_indexer.next();
         }

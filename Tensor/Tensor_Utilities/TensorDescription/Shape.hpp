@@ -67,7 +67,7 @@ namespace TENSOR_UTILITIES
         bool reset_permutation (void)
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // allocate stride info
             if (!this->m_stride.allocate(count))
@@ -148,7 +148,7 @@ namespace TENSOR_UTILITIES
         size_t get_stride (size_t dim) const
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // if dim is out of range, return 0
             if (dim >= count)
@@ -174,7 +174,7 @@ namespace TENSOR_UTILITIES
         size_t get_item_count (void) const
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // if it's empty, return 0
             if (count == 0)
@@ -204,7 +204,7 @@ namespace TENSOR_UTILITIES
         bool permute (const size_t * permute_ptr)
         {
             // Get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // We create a new shape and stride instead of inplace modification
             MemoryContainer<size_t> new_shape { };
@@ -212,20 +212,36 @@ namespace TENSOR_UTILITIES
             // allocate memory for new shape and stride
             if (!new_shape.allocate(count) || !new_stride.allocate(count))
                 return false;
+            // Get pointers
+            size_t * new_shape_ptr = (size_t*)new_shape.get(count - 1);
+            size_t * new_stride_ptr = (size_t*)new_stride.get(count - 1);
             // fill new shape and stride based on the permutation
-            for (size_t i = 0; i < count; ++i)
+            // fill it in reversed order to make sure the stride calculation is correct
+            for (size_t i = count; i > 0; --i)
             {
-                size_t permuted_idx = permute_ptr[i];
+                size_t permuted_idx = permute_ptr[i - 1];
                 // check if permuted_idx is in valid range
                 if (permuted_idx >= count)
                     return false;
-                // set new shape and stride
-                size_t * new_shape_ptr = (size_t*)new_shape.get(i);
-                size_t * new_stride_ptr = (size_t*)new_stride.get(i);
+                // get old shape and stride based on the permuted index
                 const size_t * old_shape_ptr = (const size_t*)this->m_shape.get(permuted_idx);
                 const size_t * old_stride_ptr = (const size_t*)this->m_stride.get(permuted_idx);
+                // set new shape and stride
+                // if shape is 1, we update its stride to its right neighbour's stride (if it exists),
+                // otherwise 1 [just to make my design consistent]
                 *new_shape_ptr = *old_shape_ptr;
-                *new_stride_ptr = *old_stride_ptr;
+                if (*old_shape_ptr == 1)
+                {
+                    if (i < count)  // have right neighbour
+                        *new_stride_ptr = *(new_stride_ptr + 1);
+                    else  // already the end
+                        *new_stride_ptr = 1;
+                }
+                else
+                    *new_stride_ptr = *old_stride_ptr;
+                // move pointers to the previous position
+                --new_shape_ptr;
+                --new_stride_ptr;
             }
 
             // set effective size (in count of items)
@@ -252,7 +268,7 @@ namespace TENSOR_UTILITIES
         (const size_t * multi_idx_ptr, bool allow_broadcasting = false) const
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // calculate the flattened index
             size_t flattened_idx = 0;
@@ -291,7 +307,7 @@ namespace TENSOR_UTILITIES
         bool is_contiguous (void) const
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // if it's empty, we consider it as contiguous
             if (count == 0)
@@ -321,7 +337,7 @@ namespace TENSOR_UTILITIES
         bool squeeze (void)
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // we create new shape and stride instead of inplace modification
             MemoryContainer<size_t> new_shape { };
@@ -368,7 +384,7 @@ namespace TENSOR_UTILITIES
         bool squeeze (const size_t * dims, size_t dims_count)
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // if dims_count is larger than count, obviously we cannot squeeze
             if (dims_count > count)
@@ -458,7 +474,7 @@ namespace TENSOR_UTILITIES
         bool unsqueeze (const size_t * dims, size_t dims_count)
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // if count is 0, we cannot unsqueeze
             if (count == 0)
@@ -564,7 +580,7 @@ namespace TENSOR_UTILITIES
         {
             // get ptr and number of items
             const size_t * ptr = (const size_t*)this->m_shape.get(0);
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
 
             // print
             printf("Shape: ( ");
@@ -586,7 +602,7 @@ namespace TENSOR_UTILITIES
         {
             // get ptr and number of items
             const size_t * ptr = (const size_t*)this->m_stride.get(0);
-            const size_t & count = this->m_stride.get_effective_item_count();
+            const size_t count = this->m_stride.get_effective_item_count();
 
             // print
             printf("Stride: ( ");
@@ -610,7 +626,7 @@ namespace TENSOR_UTILITIES
         Indexer generate_indexer (void) const
         {
             // get the number of dimensions (count)
-            const size_t & count = this->m_shape.get_effective_item_count();
+            const size_t count = this->m_shape.get_effective_item_count();
             // if count is 0, we return an empty Indexer
             if (count == 0)
                 return Indexer { };
@@ -693,8 +709,8 @@ namespace TENSOR_UTILITIES
     (const Shape & shape1, const Shape & shape2)
     {
         // get dimension counts of the two shapes
-        const size_t & count1 = shape1.get_dim_count();
-        const size_t & count2 = shape2.get_dim_count();
+        const size_t count1 = shape1.get_dim_count();
+        const size_t count2 = shape2.get_dim_count();
 
         // make sure no empty shape
         if (count1 == 0 || count2 == 0)

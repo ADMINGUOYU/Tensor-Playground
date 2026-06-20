@@ -1,96 +1,199 @@
 #ifndef _TENSOR_HPP_
 #define _TENSOR_HPP_
 
-#include <cstdio>
-#include <utility>
-#include <typeinfo>
+#include <cstddef>  // defines: size_t
 #include "Tensor_Utilities/Tensor_Utilities.hpp"
 
-template <typename T = float>
-class Tensor
+// This MACRO is the intermediate conversion type to use
+#ifndef TENSOR_CONVERSION_INTERMEDIATE_TYPE
+    #define TENSOR_CONVERSION_INTERMEDIATE_TYPE double
+#endif
+
+namespace ty
 {
-private:
-    T *m_data {};
-    Shape m_info {};
 
-public:
-    /* constructors and destructors */
-    Tensor(void) { };
-    Tensor(int val, T default_val = { });
-    Tensor(int row, int col, T default_val = { });
-    Tensor(int height, int width, int depth, T default_val = { });
-    Tensor(int * dims, int num_dims, T default_val = { }, bool delete_flag = true);
-    Tensor(const char * ctrl_str, T default_val = { });
-    Tensor(T *data, const Shape & info, bool delete_flag = true);
-    ~Tensor(void);
+    /* Base class of Tensor */
+    class _Tensor
+    {
+    // constructors
+    public:
 
-    /* copy and move */
-    Tensor(const Tensor<T> & other);
-    Tensor(Tensor<T> && other);
+        // default constructor
+        _Tensor(void) = default;
 
-public:
-    /* operator assignment */
-    Tensor<T>& operator=(const Tensor<T> & other);
-    Tensor<T>& operator=(Tensor<T> && other);
+        // virtual destructor
+        virtual ~_Tensor(void) = default;
 
-public:
-    /* member functions */
-    /* accessors / print functions */
-    void print_as_vector(void) const;
-    void print(void) const;
+        // copy constructor
+        _Tensor(const _Tensor & other) = default;
 
-    const Shape & get_info(void) const { return this->m_info; }
-    
+        // move constructor
+        _Tensor(_Tensor && other) = default;
 
-public:
-    /* consts */
-    Tensor<T> get_val_in_dims(int * dims, int num_dims, bool delete_flag = true) const;
-    /* mutators */
-    void init_to_value(T val);
-    bool set_dim(Shape dim);
-    void squeeze(int dim = -1) { this->m_info.squeeze(dim); }
-    void unsqueeze(int dim) { this->m_info.unsqueeze(dim); }
-    Tensor<T>& set_val(int idx, T val);
-    Tensor<T>& set_val(int * dims, int num_dims, T val, bool delete_flag = true);
+    // copy and move assignment
+    public:
 
-private:
-    enum Op { ADD = 0x2b, SUB = 0x2d, MUL = 0x2a, DIV = 0x2f };
-    Tensor<T> & op_inplace(const T & val, Op op);
-    Tensor<T> & op_inplace(const Tensor<T> & val, Op op);
-    Tensor<T> op(const T & val, Op op) const;
-    Tensor<T> op(const Tensor<T> & val, Op op) const;
+        // no base class / override copy and move operators to
+        // avoid problems -> No cross children type copying/moving
+        _Tensor & operator= (const _Tensor & other) = delete;
+        _Tensor & operator= (_Tensor && other) = delete;
 
-public:
-    bool equal(const Tensor<T>& other) const;
-    bool operator== (const Tensor<T>& other) const { return this->equal(other); }
-    Tensor<T> neg_inplace(void);
-    Tensor<T> neg(void) const;
+        // copy function
+        virtual bool copy_to (_Tensor & dest, bool make_contiguous = true) const = 0;
 
-    Tensor<T> & operator+=(const T & val) { return (*this).op_inplace(val, Op::ADD); }
-    Tensor<T> operator+(const T & val) const { return (*this).op(val, Op::ADD); }
-    Tensor<T> & operator+=(const Tensor<T> & val) { return (*this).op_inplace(val, Op::ADD); }
-    Tensor<T> operator+(const Tensor<T> & val) const { return (*this).op(val, Op::ADD); }
+    // internal APIs
+    protected:
+        // Get the pointer to memory cell (value peaking)
+        virtual const void * data (const size_t flatted_index) const = 0;
+        // Get the pointer to memory cell (value editing)
+        virtual void * data (const size_t flatted_index) = 0;
+        // Also a pair of set (conversion) functions
+        virtual bool set_as (const size_t flatted_index,
+                             TENSOR_CONVERSION_INTERMEDIATE_TYPE value) = 0;
 
-    Tensor<T> & operator-=(const T & val) { return (*this).op_inplace(val, Op::SUB); }
-    Tensor<T> operator-(const T & val) const { return (*this).op(val, Op::SUB); }
-    Tensor<T> & operator-=(const Tensor<T> & val) { return (*this).op_inplace(val, Op::SUB); }
-    Tensor<T> operator-(const Tensor<T> & val) const { return (*this).op(val, Op::SUB); }
+    // basic public APIs
+    public:
 
-    Tensor<T> & mul_inplace(const T & val) { return (*this).op_inplace(val, Op::MUL); }
-    Tensor<T> mul(const T & val) const { return (*this).op(val, Op::MUL); }
-    Tensor<T> & mul_inplace(const Tensor<T> & val) { return (*this).op_inplace(val, Op::MUL); }
-    Tensor<T> mul(const Tensor<T> & val) const { return (*this).op(val, Op::MUL); }
+        /* Getters */
+        // Gets the reference of the shape object
+        virtual const TENSOR_UTILITIES::Shape & get_shape (void) const = 0;
+        // Gets the reference of the buffer object
+        virtual const TENSOR_UTILITIES::Buffer & get_buffer (void) const = 0;
+        // Get contiguity of current state
+        virtual bool get_contiguity_state (void) const = 0;
+        // Get the pointer to memory cell (value peaking)
+        virtual const void * data (const size_t * multi_idx_ptr) const = 0;
+        virtual const void * data (const TENSOR_UTILITIES::Indexer & indexer) const = 0;
 
-    Tensor<T> & div_inplace(const T & val) { return (*this).op_inplace(val, Op::DIV); }
-    Tensor<T> div(const T & val) const { return (*this).op(val, Op::DIV); }
-    Tensor<T> & div_inplace(const Tensor<T> & val) { return (*this).op_inplace(val, Op::DIV); }
-    Tensor<T> div(const Tensor<T> & val) const { return (*this).op(val, Op::DIV); }
 
-    // Tensor<T> mat_mul(const Tensor<T> & val);
-    // Tensor<T> & mat_mul_inplace(const Tensor<T> & val);
-    
-};
+        /* Mutators */
+        // squeeze and un-squeeze prototypes
+        virtual bool squeeze (void) = 0; 
+        virtual bool squeeze (size_t dim) = 0;
+        virtual bool squeeze (const size_t * dims, size_t dims_count) = 0;
+        virtual bool unsqueeze (size_t dim) = 0;
+        virtual bool unsqueeze (const size_t * dims, size_t dims_count) = 0;
+        // reshape (provide a new shape array)
+        // new shape should have the same total item count
+        virtual bool reshape (const size_t * shape, size_t dims_count) = 0;
+        virtual bool reshape_like (const TENSOR_UTILITIES::Shape & new_shape) = 0;
+        // permutation
+        virtual bool permute (const size_t * permute_ptr) = 0;
+        // contiguous -> refresh the memory for a continuous memory layout
+        virtual bool contiguous (void) = 0;
+        // Get the pointer to memory cell (value editing)
+        virtual void * data (const size_t * multi_idx_ptr) = 0;
+        virtual void * data (const TENSOR_UTILITIES::Indexer & indexer) = 0;
+        // Also a pair of set (conversion) functions
+        virtual bool set_as (const size_t * multi_idx_ptr,
+                             TENSOR_CONVERSION_INTERMEDIATE_TYPE value) = 0;
+        virtual bool set_as (const TENSOR_UTILITIES::Indexer & indexer,
+                             TENSOR_CONVERSION_INTERMEDIATE_TYPE value) = 0;
+        // Allocate the tensor with a given shape (only allocation)
+        // should not touch the tensor if failed
+        // if success tensor should always be contiguous
+        virtual bool allocate (const size_t * shape, size_t dims_count) = 0;
+        virtual bool allocate_like (const TENSOR_UTILITIES::Shape & shape) = 0;
+        // Initialisation (using buffer's default init function, no guarantee value)
+        virtual void init (void) = 0;
+        // Erase the tensor data and reset the shape info (void the tensor)
+        virtual void erase (void) = 0;
 
+        /* Utilities */
+        // print function (outputs tensor in a lovely format)
+        virtual void print (unsigned int precision = 6, size_t max_items = 100) const = 0;
+    };
+
+
+    /* Class of Tensor */
+    template <typename T = float>
+    class Tensor : public _Tensor
+    {
+    // private datamembers
+    private:
+
+        // memory container - we take the entire object here
+        TENSOR_UTILITIES::MemoryContainer<T>  m_tensor_buff { };
+
+        // pointer to shape - we take the entire object here
+        TENSOR_UTILITIES::Shape m_shape { };
+
+        // memory contiguous flag
+        // for empty tensor, this should be true
+        // should sync with Shape's is_contiguous() function
+        bool m_contiguous { true };
+
+    // constructors and destructor
+    public:
+
+        // default constructor
+        Tensor (void) = default;
+
+        // copy constructor
+        Tensor (const Tensor & other);
+
+        // move constructor
+        Tensor (Tensor && other);
+
+        // destructor
+        ~Tensor (void) override = default;
+
+    // copy and move assignment
+    public:
+
+        // also deletes operator='s default copy and move
+        // since we have declared copy and move constructor
+
+        // copy function
+        bool copy_to (_Tensor & dest, bool make_contiguous = true) const override;
+
+    // protected APIs
+    protected:
+        /* Getters */
+        const void * data (const size_t flatted_index) const override;
+        /* Mutators */
+        void * data (const size_t flatted_index) override;
+        bool set_as (const size_t flatted_index,
+                     TENSOR_CONVERSION_INTERMEDIATE_TYPE value) override;
+
+    // basic public APIs
+    public:
+
+        /* Getters */
+        const TENSOR_UTILITIES::Shape & get_shape (void) const override;
+        const TENSOR_UTILITIES::Buffer & get_buffer (void) const override;
+        bool get_contiguity_state (void) const override;
+        const void * data (const size_t * multi_idx_ptr) const override;
+        const void * data (const TENSOR_UTILITIES::Indexer & indexer) const override;
+
+        /* Mutators */
+        bool squeeze (void) override;
+        bool squeeze (size_t dim) override;
+        bool squeeze (const size_t * dims, size_t dims_count) override;
+        bool unsqueeze (size_t dim) override;
+        bool unsqueeze (const size_t * dims, size_t dims_count) override;
+        bool reshape (const size_t * shape, size_t dims_count) override;
+        bool reshape_like (const TENSOR_UTILITIES::Shape & new_shape) override;
+        bool permute (const size_t * permute_ptr) override;
+        bool contiguous (void) override;
+        void * data (const size_t * multi_idx_ptr) override;
+        void * data (const TENSOR_UTILITIES::Indexer & indexer) override;
+        bool set_as (const size_t * multi_idx_ptr,
+                     TENSOR_CONVERSION_INTERMEDIATE_TYPE value) override;
+        bool set_as (const TENSOR_UTILITIES::Indexer & indexer,
+                     TENSOR_CONVERSION_INTERMEDIATE_TYPE value) override;
+        bool allocate (const size_t * shape, size_t dims_count) override;
+        bool allocate_like (const TENSOR_UTILITIES::Shape & shape) override;
+        void init (void) override;
+        void erase (void) override;
+
+        /* Utilities */
+        void print (unsigned int precision = 6, size_t max_items = 100) const override;
+    };
+
+} // end of namespace
+
+// we implement in here
 #include "Tensor.tpp"
 
 #endif

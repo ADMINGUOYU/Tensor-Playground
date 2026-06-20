@@ -327,6 +327,221 @@ namespace TENSOR_UTILITIES
             // if all strides are correct, it's contiguous
             return true;
         }
+        /**
+         * @brief Viewable check
+         *        checks if we can view the current shape as a new shape
+         *        without the need to copy data (for instance)
+         * @param shape The new shape to check if viewable.
+         * @return The new shape if viewable, an empty shape otherwise.
+         * @note For a tensor to be viewed, the new view size must be compatible
+         *       with its original size and stride,
+         *       i.e., each new view dimension must either be a subspace of an
+         *             original dimension, or only span across original dimensions
+         *             d, d+1, ... , d+k that satisfy the following contiguity-like
+         *             condition that ∀ i = d, ... , d+k-1,
+         *             stride[i] = stride[i+1] × size[i+1]
+         */
+        Shape viewable_as (const Shape & shape) const
+        {
+            // total item counts must match
+            if (this->get_item_count() != shape.get_item_count())
+                return Shape { };
+
+            // get counts of the dimensions
+            const size_t src_count = this->get_dim_count();
+            const size_t tgt_count = shape.get_dim_count();
+
+            // prepare result shape
+            // if target_count is 0, the allocation will fail, thus returning empty shape
+            Shape result { };
+            if ((!result.m_shape.allocate(tgt_count)) || (!result.m_stride.allocate(tgt_count)))
+                return Shape { };
+            result.m_shape.set_effective_size(tgt_count);
+            result.m_stride.set_effective_size(tgt_count);
+
+            // we need to make a copy of this for merging and splitting
+            // this acts as a operational buffer
+            Shape src_copy = *this;
+            if ((!src_copy.m_shape.get_buffer_size()) || (!src_copy.m_stride.get_buffer_size()))
+                // if any of these is 0, there is an error
+                return Shape { };
+            // we define merge start index and end index (for the mergeable lambda function)
+            size_t merge_start = 0;
+            size_t merge_end = 0;
+            // prepare a C++11 lambda function to check if adjacent dimensions can merge
+            // capture the buffer and start and end indices as reference 
+            // (safe to use within this function call)
+            auto mergeable = [&src_copy, &merge_start, &merge_end](void) -> bool
+            {
+                // check if dimensions from start_dim to end_dim can merge
+                // they can merge if they satisfy the contiguity-like condition
+                // i will never be equal to end_dim, sine end_dim <= dimension_count - 1
+                // everything is OKAY
+                // if we return true, it means that dimension[start, end] is a contiguous block
+                const size_t * stride_ptr = (const size_t*)src_copy.m_stride.get(merge_start);
+                const size_t * next_stride_ptr = stride_ptr + 1;  // directly plus 1 to increase efficiency
+                const size_t * next_shape_ptr  = (const size_t*)src_copy.m_shape.get(merge_start + 1);
+                for (size_t i = merge_start; i < merge_end; ++i)
+                {
+                    // check the contiguity-like condition
+                    // formula: stride[i] = stride[i+1] × size[i+1]
+                    if (*stride_ptr != (*next_stride_ptr) * (*next_shape_ptr))
+                        return false;
+                    // move to the next dimension
+                    ++stride_ptr;
+                    ++next_stride_ptr;
+                    ++next_shape_ptr;
+                }
+                // after checking all ONE-BY-ONE, we return true
+                return true;
+            };
+
+            // walk from last dimension backwards
+            // for these iterating pointers, we store 1 larger
+            // so we can use 0 to indicate the end of the dimension
+            size_t src_i = src_count;
+            size_t tgt_i = tgt_count;
+
+            /*
+            STRATEGY (start from the last dimension and walk backwards):
+            We operate on src_copy (so merge and split could be done in-place)
+              a) - if tgt[tgt_i] = 1, we assign and skip
+              b) - if src[src_i] = 1, we skip (directly)
+              c) - if src[src_i] == tgt[tgt_i], we assign and move both pointers
+              d) - if src[src_i] % tgt[tgt_i] == 0, we can split the dimension
+              ELSE, we try to merge src[x, ... , src_i] until d) is satisfied
+            NOTE: when splitting, we instantly use one split, so the remaining part will not
+                  be larger than current src_i (actually, it will be the same in this case)
+            STOPPING CONDITION:
+                - if we have assigned all target dimensions (tgt_i == 0), we are successful
+                - if we have walked through all source dimensions (src_i == 0) but still have
+                  target dimensions left, we fail
+            */
+
+            // we define a constant for 1, so we can use its address for stride assignment
+            const size_t one = 1;
+
+            // Outer loop, just check STOPPING CONDITION
+            while (tgt_i > 0 && src_i > 0)
+            {
+                // define a target_i and source_i real (the -1 version)
+                size_t tgt_i_real = tgt_i - 1;
+                size_t src_i_real = src_i - 1;
+
+                // get target shape (target stride is not important)
+                const size_t * tgt_shape_ptr = (const size_t*)shape.m_shape.get(tgt_i_real);
+                
+                // case a) - if tgt[tgt_i] = 1, we assign and skip
+                if (*tgt_shape_ptr == 1)
+                {
+                    // assign shape and stride
+                    result.m_shape.set(tgt_i_real, tgt_shape_ptr);
+                    // stride should be its right neighbour's stride (if it exists), otherwise 1
+                    if (tgt_i < tgt_count)  // have right neighbour
+                        result.m_stride.set(tgt_i_real, result.m_stride.get(tgt_i));  // tgt_i = tgt_i_real + 1
+                    else  // already the end
+                        result.m_stride.set(tgt_i_real, &one);
+                    // move target pointer
+                    --tgt_i;
+                    continue;
+                }
+
+                // get source shape
+                const size_t * src_shape_ptr = (const size_t*)src_copy.m_shape.get(src_i_real);
+
+                // case b) - if src[src_i] = 1, we skip (directly)
+                if (*src_shape_ptr == 1)
+                {
+                    // move source pointer
+                    --src_i;
+                    continue;
+                }
+
+                // case c) - if src[src_i] == tgt[tgt_i], we assign and move both pointers
+                if (*src_shape_ptr == *tgt_shape_ptr)
+                {
+                    // assign shape and stride
+                    result.m_shape.set(tgt_i_real, src_shape_ptr);
+                    result.m_stride.set(tgt_i_real, src_copy.m_stride.get(src_i_real));
+                    // move both pointers
+                    --tgt_i;
+                    --src_i;
+                    continue;
+                }
+
+                // case d) - if src[src_i] % tgt[tgt_i] == 0, we can split the dimension
+                if (*src_shape_ptr % *tgt_shape_ptr == 0)
+                {
+                    // get the stride of the split dimension (we will use it for the split part)
+                    const size_t * split_stride_ptr = (const size_t*)src_copy.m_stride.get(src_i_real);
+                    // assign shape and stride
+                    result.m_shape.set(tgt_i_real, tgt_shape_ptr);
+                    result.m_stride.set(tgt_i_real, split_stride_ptr);
+                    // split the source dimension
+                    size_t new_src_shape = *src_shape_ptr / *tgt_shape_ptr;
+                    src_copy.m_shape.set(src_i_real, &new_src_shape);
+                    // the split (remaining part)'s stride will change
+                    // formula: new_stride = old_stride(split_stride_ptr) × new_shape(tgt_shape_ptr)
+                    size_t new_src_stride = *split_stride_ptr * (*tgt_shape_ptr);
+                    src_copy.m_stride.set(src_i_real, &new_src_stride);
+                    // move target pointer only
+                    // (source pointer remains the same, since we have split it)
+                    --tgt_i;
+                    continue;
+                }
+
+                // ELSE, we try to merge src[x, ... , src_i] until d) is satisfied
+                // each step, we try merge only one more,
+                // the merge-end index is src_i_real, we should start from src_i_real - 1
+                merge_end = src_i_real;
+                // if merge_start is 0, it means we have merged all the way to the beginning,
+                // we should stop
+                if (src_i_real == 0)
+                    // we have merged all the way to the beginning but still cannot satisfy case d),
+                    // we fail
+                    return Shape { };
+                // merge_start is always (merge_end - 1)
+                merge_start = merge_end - 1;
+                // now we have set the merge start and end, we check if they are mergeable
+                if (mergeable())
+                {
+                    // We merge the dimension
+                    // the merged dimension's shape is the product of the merged dimensions' shapes
+                    size_t merged_shape = 1;
+                    for (size_t i = merge_start; i <= merge_end; ++i)
+                    {
+                        const size_t * shape_ptr = (const size_t*)src_copy.m_shape.get(i);
+                        merged_shape *= *shape_ptr;
+                    }
+                    // the merged dimension's stride is the stride of the last merged dimension
+                    // (merge_end's stride)
+                    const size_t * merged_stride_ptr = (const size_t*)src_copy.m_stride.get(merge_end);
+                    // we set the merged dimension to the merge start index (just to keep it simple)
+                    src_copy.m_shape.set(merge_start, &merged_shape);
+                    src_copy.m_stride.set(merge_start, merged_stride_ptr);
+                    // we skip the pointers to merge start index
+                    src_i = merge_start + 1;  // since we are using 1 larger for the pointers
+                    // continue
+                    continue;
+                }
+                else
+                {
+                    // if we fail to merge, we do not expect we can merge any further
+                    // thus, we fail
+                    return Shape { };
+                }
+            }
+
+            // If we landed here we should either hit tgt_i == 0 or src_i == 0
+            // if we have assigned all target dimensions (tgt_i == 0), we are successful
+            if (tgt_i == 0)
+                return result;
+            else
+                // if we have walked through all source dimensions (src_i == 0) but still
+                // have target dimensions left, we fail (actually we should never be here,
+                // since her have checked the total item count at the beginning)
+                return Shape { };
+        }
 
         // Squeeze and unsqueeze utilities
         /**

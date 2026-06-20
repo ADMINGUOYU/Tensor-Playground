@@ -99,7 +99,13 @@ namespace TENSOR_UTILITIES
             if (!this->m_shape.allocate(count))
                 return false;
             for (size_t i = 0; i < count; ++i)
-                this->m_shape.set(i, &shape_ptr[i]);
+            {
+                if (shape_ptr[i])
+                    this->m_shape.set(i, &shape_ptr[i]);
+                else
+                    // dimension = 0 is not allowed
+                    return false;
+            }
             // set effective size (in count of items)
             this->m_shape.set_effective_size(count);
             

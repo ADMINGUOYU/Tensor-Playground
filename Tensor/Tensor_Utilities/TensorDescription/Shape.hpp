@@ -273,6 +273,39 @@ namespace TENSOR_UTILITIES
             return flattened_idx;        
         }
 
+        // View and contiguity
+        /**
+         * @brief Check if the shape is contiguous
+         * @return True if the shape is contiguous, false otherwise
+         * @note We consider empty shape as contiguous
+         * @note A shape is contiguous if the stride of each dimension is equal to the product of the shapes of the subsequent dimensions.
+         *       For example, for a shape (2, 3, 4), the strides should be (12, 4, 1) for it to be contiguous.
+         *       If the shape is not contiguous, it means that the data is not stored in a contiguous block of memory in the order defined by the shape.
+         */
+        bool is_contiguous (void) const
+        {
+            // get the number of dimensions (count)
+            const size_t & count = this->m_shape.get_effective_item_count();
+
+            // if it's empty, we consider it as contiguous
+            if (count == 0)
+                return true;
+
+            // check the stride of each dimension
+            size_t expected_stride = 1;
+            for (size_t i = count; i > 0; --i)
+            {
+                const size_t * shape_ptr = (const size_t*)this->m_shape.get(i - 1);
+                const size_t * stride_ptr = (const size_t*)this->m_stride.get(i - 1);
+                if (*stride_ptr != expected_stride)
+                    return false;
+                expected_stride *= *shape_ptr;
+            }
+
+            // if all strides are correct, it's contiguous
+            return true;
+        }
+
         // Squeeze and unsqueeze utilities
         /**
          * @brief Squeezes the shape by removing dimensions with size 1.

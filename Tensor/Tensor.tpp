@@ -690,6 +690,7 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
     size_t total_to_print = (param_count < max_items) ? param_count : max_items;
     size_t indentation_count = 0;
     const char * indentation = "  ";
+    const char * separator = ", ";
     // LOOP EACH ELEMENT TO PRINT (i is the indexer location)
     for (size_t i = 0; i < total_to_print; ++i)
     {
@@ -698,8 +699,10 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
         {
             if ((i % indentation_mark[j]) == 0)
             {
-                // print indentation
-                for (size_t k = 0; k < indentation_count; ++k) printf("%s", indentation);
+                // print indentation - skip if it's an inline dimension-1 collapse
+                if (j == 0 || (indentation_mark[j - 1] != indentation_mark[j]))
+                    for (size_t k = 0; k < indentation_count; ++k) printf("%s", indentation);
+                
                 // print bracket (if last intrested dimension, use '[')
                 if (j == (dimension_count - 1))
                     printf("[ ");
@@ -741,7 +744,13 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
             {
                 // print bracket (if last intrested dimension, use ']')
                 if (j == (dimension_count - 1))
-                    printf(" ],");
+                {
+                    // If this is also the end of an inline parent dimension, don't break the line yet
+                    if (j > 0 && ((i + 1) % indentation_mark[j - 1]) == 0 && (indentation_mark[j - 1] == indentation_mark[j]))
+                        printf(" ]");
+                    else
+                        printf(" ],\n");
+                }
                 else
                 {
                     // check if next interested number is the same
@@ -749,15 +758,31 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
                     // since we have not made a new line when printing '{'
                     if (indentation_mark[j] != indentation_mark[j + 1])
                     {
-                        // prints new line if not
-                        printf("\n");
                         // print indentation
                         --indentation_count;
                         for (size_t k = 0; k < indentation_count; ++k) printf("%s", indentation);
+                        printf("},\n");
                     }
-                    // finally, prints '}'
-                    printf("},");
+                    else
+                    {
+                        // Dimension was 1: print closing bracket tightly on the same line
+                        printf("}");
+                        // If it's also finishing a higher parent block simultaneously, let the next loop run inline
+                        if (j > 0 && ((i + 1) % indentation_mark[j - 1]) == 0 && (indentation_mark[j - 1] == indentation_mark[j]))
+                            ; // do nothing
+                        else
+                            printf(",\n");
+                    }
                 }
+            }
+            else
+            {
+                // If this is the inner loop and we aren't closing a bracket, print the normal separator
+                if (j == (dimension_count - 1))
+                {
+                    printf("%s", separator);
+                }
+                break;
             }
         }
     }

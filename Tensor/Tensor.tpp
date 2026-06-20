@@ -761,7 +761,12 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
                         // print indentation
                         --indentation_count;
                         for (size_t k = 0; k < indentation_count; ++k) printf("%s", indentation);
-                        printf("},\n");
+                        
+                        // Check if the NEXT dimension higher up also wraps tightly inline
+                        if (j > 0 && ((i + 1) % indentation_mark[j - 1]) == 0 && (indentation_mark[j - 1] == indentation_mark[j]))
+                            printf("},");
+                        else
+                            printf("},\n");
                     }
                     else
                     {

@@ -178,6 +178,9 @@ namespace TENSOR_UTILITIES
                 if (this->step + k >= this->max_step)
                     return false;
 
+                // create a copy of k for operation
+                size_t to_move = k;
+
                 // advance the current_idx by k steps
                 // we add k to the last dimension and
                 // carry over if it exceeds the shape
@@ -185,7 +188,7 @@ namespace TENSOR_UTILITIES
                 // we do this since size_t is unsigned
                 {
                     size_t dim_idx = i - 1;
-                    this->current_idx[dim_idx] += k;
+                    this->current_idx[dim_idx] += to_move;
                     if (this->current_idx[dim_idx] < this->shape[dim_idx])
                         // no carry over needed, break
                         break;
@@ -195,10 +198,10 @@ namespace TENSOR_UTILITIES
                         size_t carry = this->current_idx[dim_idx] / this->shape[dim_idx];
                         this->current_idx[dim_idx] = this->current_idx[dim_idx] % this->shape[dim_idx];
                         // add the carry to the next dimension in the next iteration
-                        k = carry;
+                        to_move = carry;
                     }
                 }
-                // increase step by k
+                // increase step by k (original value)
                 this->step += k;
                 return true;
             }
@@ -208,6 +211,9 @@ namespace TENSOR_UTILITIES
                 // if step is less than k, we cannot move backward
                 if (this->step < k)
                     return false;
+                
+                // create a copy of k for operation
+                size_t to_move = k;
 
                 // move backward the current_idx by k steps
                 // we subtract k from the last dimension and
@@ -215,20 +221,20 @@ namespace TENSOR_UTILITIES
                 for (size_t i = this->dim_count; i > 0; --i)
                 {
                     size_t dim_idx = i - 1;
-                    if (this->current_idx[dim_idx] >= k)
+                    if (this->current_idx[dim_idx] >= to_move)
                     // use comparison since size_t is unsigned
                     {
                         // no borrow needed, just subtract and break
-                        this->current_idx[dim_idx] -= k;
+                        this->current_idx[dim_idx] -= to_move;
                         break;
                     }
                     else
                     {
                         // borrow needed, calculate the borrow and update current dimension
-                        size_t borrow = (k - this->current_idx[dim_idx] + this->shape[dim_idx] - 1) / this->shape[dim_idx];
-                        this->current_idx[dim_idx] = (this->current_idx[dim_idx] + borrow * this->shape[dim_idx]) - k;
+                        size_t borrow = (to_move - this->current_idx[dim_idx] + this->shape[dim_idx] - 1) / this->shape[dim_idx];
+                        this->current_idx[dim_idx] = (this->current_idx[dim_idx] + borrow * this->shape[dim_idx]) - to_move;
                         // add the borrow to the next dimension in the next iteration
-                        k = borrow;
+                        to_move = borrow;
                     }
                 }
                 // decrease step by k

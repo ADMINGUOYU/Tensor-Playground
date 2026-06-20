@@ -728,9 +728,9 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
 
         // print value
         if (integer_type)
-            printf(format_str, ptr);
+            printf(format_str, *ptr);
         else
-            printf(format_str, precision, ptr);
+            printf(format_str, precision, *ptr);
 
         // CHECK IF WE ARE GOING TO INDENT
         for (size_t j_itr = dimension_count;

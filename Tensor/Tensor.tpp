@@ -379,6 +379,10 @@ inline bool ty::Tensor<T>::reshape(const size_t *shape, size_t dims_count)
 template <typename T>
 inline bool ty::Tensor<T>::reshape_like(const TENSOR_UTILITIES::Shape & shape)
 {
+    // check if we have the same amount of parameters
+    if (this->m_shape.get_item_count() != shape.get_item_count())
+        return false;
+
     // check if our tensor is contiguous,
     // if so, we can just copy the data and set the new shape
     // faster

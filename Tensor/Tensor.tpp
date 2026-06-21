@@ -657,6 +657,10 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
     printf("ty::Tensor<%s> with ", typeid(T).name());
     this->m_shape.print(); // contains '\n'
 
+    // if the tensor is empty (0 dimension)
+    if (!this->m_tensor_buff.get_effective_size())
+        return;  // return directly
+
     // check type and set format string
     // this syntax causes runtime overhead
     // (constexpr if-else is available in C++17)

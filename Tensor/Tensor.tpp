@@ -263,7 +263,7 @@ inline const void *ty::Tensor<T>::data(const size_t *multi_idx_ptr) const
     // it is really 0 or invalid index
     if (flatted_index == 0)
     {
-        const size_t & count = this->m_shape.get_dim_count();
+        const size_t count = this->m_shape.get_dim_count();
         for (size_t i = 0; i < count; ++i)
             // flatted_index is 0 only when all indexes are 0
             if (multi_idx_ptr != 0)
@@ -489,7 +489,7 @@ inline void *ty::Tensor<T>::data(const size_t *multi_idx_ptr)
     // it is really 0 or invalid index
     if (flatted_index == 0)
     {
-        const size_t & count = this->m_shape.get_dim_count();
+        const size_t count = this->m_shape.get_dim_count();
         for (size_t i = 0; i < count; ++i)
             // flatted_index is 0 only when all indexes are 0
             if (multi_idx_ptr != 0)

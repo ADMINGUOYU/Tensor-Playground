@@ -2,7 +2,7 @@
 // Description: Class to manage storage and provide efficient
 //              operative interface.
 //				< Improved version. >
-// Date: June. 19, 2026
+// Date: June. 21, 2026
 // @ADMINGUOYU
 
 #ifndef _UTILS_MEMORY_CONTAINER_HPP_
@@ -21,6 +21,22 @@
 #ifndef BUFFER_SHRINK_THRESHOLD
     #define BUFFER_SHRINK_THRESHOLD 2
 #endif
+
+// macro for for allowing threaded operations
+// only affects the MemoryContainer's internal operations
+#ifdef BUFFER_THREADED_OPERATIONS
+    // define maximum number of threads to use
+    #ifndef BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT
+        #define BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT 4
+    #endif
+    // include pthread library (C library)
+    // NOTE: Windows users, you might need to install:
+    //       winpthread (MinGW-w64)
+    //       pthreads-win32 (vcpkg)
+    // You also have to link with pthread library
+    // (add -lpthread to your linker flags)
+    #include <pthread.h>
+#endif // BUFFER_THREADED_OPERATIONS
 
 // macro for buffer printing, define BUFFER_PRINT_ITEM
 // if you want to print the items in the buffer (for debugging)
@@ -230,17 +246,127 @@ namespace TENSOR_UTILITIES
                     return Cmp_result{Cmp_result::Cmp::NOT_EQUAL, 0};
             }
 
-            // byte copier (will NOT check if the indexies are in range)
-            static void byte_copy(size_t start, size_t end, void * dst, const void * src)
+            // byte copier (will NOT check if the indexes are in range)
+            // copy range [start, end)
+            // [INTERNAL VERSION]
+            static void _byte_copy(size_t start, size_t end, void * dst, const void * src)
             {
                 // convert pointers
-                unsigned char *dst_ptr = (unsigned char *)dst;
-                const unsigned char *src_ptr = (const unsigned char *)src;
-                // copy loop
-                for (size_t i = start; i < end; ++i)
-                    dst_ptr[i] = src_ptr[i];
+                unsigned char *dst_bytes = (unsigned char *)dst + start;
+                const unsigned char *src_bytes = (const unsigned char *)src + start;
+                size_t bytes_to_copy = end - start;
+
+                // Cast to 64-bit word pointers to copy 8 bytes at a time
+                // or 32-bit on 32-bit systems
+                size_t *dst_words = (size_t *)dst_bytes;
+                const size_t *src_words = (const size_t *)src_bytes;
+    
+                // Calculate the number of whole words to copy
+                size_t words = bytes_to_copy / sizeof(size_t);
+                // and the remaining bytes
+                size_t rem_bytes = bytes_to_copy % sizeof(size_t);
+
+                // Copy 8 bytes per iteration
+                for (size_t i = 0; i < words; ++i)
+                    dst_words[i] = src_words[i];
+
+                // Clean up any remaining trailing bytes
+                if (rem_bytes > 0)
+                {
+                    unsigned char *dst_rem = (unsigned char *)(dst_words + words);
+                    const unsigned char *src_rem = (const unsigned char *)(src_words + words);
+                    for (size_t i = 0; i < rem_bytes; ++i)
+                        dst_rem[i] = src_rem[i];
+                }
+
                 // return
                 return;
+            }
+            // byte copy wrapper (enable multi-threading)
+            static void byte_copy(size_t start, size_t end, void * dst, const void * src)
+            {
+// [NORMAL] single threaded copy
+#ifndef BUFFER_THREADED_OPERATIONS
+                // directly call our _byte_copy internal function
+                _byte_copy(start, end, dst, src);
+                // DONE
+                return;
+// [THREADED] threaded copy
+#else
+                // calculate total size to copy
+                size_t total_size = end - start;
+                // calculate thread to use
+                size_t thread_count = (total_size < BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT) ? 
+                                       total_size : BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT;
+                // if thread count is 0, we return (nothing to copy)
+                if (thread_count == 0) return;
+                // calculate size per thread
+                size_t size_per_thread = total_size / thread_count;
+                // calculate remaining size (for the last thread)
+                size_t remaining_size = total_size % thread_count;
+
+                // define thread data structure
+                struct copier_thread
+                {
+                    size_t start;
+                    size_t end;
+                    void *dst;
+                    const void *src;
+                };
+                // create thread data array
+                copier_thread * thread_data = (copier_thread *)malloc(thread_count * sizeof(copier_thread));
+                // create thread array
+                pthread_t * threads = (pthread_t *)malloc(thread_count * sizeof(pthread_t));
+                // error checking for malloc
+                if (!thread_data || !threads)
+                {
+                    // if malloc failed, we terminate
+                    free(thread_data);
+                    free(threads);
+                    return;
+                }
+
+                // thread function (worker)
+                // we use a C++11 lambda function for simplicity
+                // pthread accepts a function with type void * (*)(void*)
+                void * (*thread_func)(void *) = [](void *arg) -> void *
+                {
+                    // convert argument to copier_thread pointer
+                    copier_thread *data = (copier_thread *)arg;
+                    // call the internal byte copy function for this thread's range
+                    Memory::_byte_copy(data->start, data->end, data->dst, data->src);
+                    // return (nothing to return)
+                    return nullptr;
+                };
+
+                // assign thread data
+                for (size_t i = 0; i < thread_count; ++i)
+                {
+                    thread_data[i].start = start + i * size_per_thread;
+                    thread_data[i].end = (start + (i + 1) * size_per_thread);
+                    // add remaining size to the last thread
+                    if (i == thread_count - 1)
+                        thread_data[i].end += remaining_size;
+                    thread_data[i].dst = dst;
+                    thread_data[i].src = src;
+                }
+
+                // create threads
+                for (size_t i = 0; i < thread_count; ++i)
+                    pthread_create(&threads[i], nullptr, thread_func, &thread_data[i]);
+
+                // wait for threads to finish
+                for (size_t i = 0; i < thread_count; ++i)
+                    pthread_join(threads[i], nullptr);
+
+                // free thread data
+                free(thread_data);
+                // free thread array
+                free(threads);
+
+                // return
+                return;
+#endif
             }
             // clone (full copy)
             static Memory clone(const Memory &memory)
@@ -385,7 +511,7 @@ namespace TENSOR_UTILITIES
             // get pointer
             T *ptr = (T *)this->buffer.ptr;
             // loop and init
-            const size_t &count = this->buffer.mem_size / this->dtype_size;
+            const size_t count = this->buffer.mem_size / this->dtype_size;
             for (size_t i = 0; i < count; ++i)
                 ptr[i] = T{};
             // return
@@ -514,7 +640,7 @@ namespace TENSOR_UTILITIES
                 return false;
             if (idx < 0)
                 return false;
-            const size_t &idx_byte = idx * this->dtype_size;
+            const size_t idx_byte = idx * this->dtype_size;
             if (idx_byte < this->buffer.mem_size)
                 return true;
             else
@@ -531,8 +657,8 @@ namespace TENSOR_UTILITIES
         // print function
         void print(void) const override
         {
-            const size_t &mem_sz = this->buffer.mem_size / this->dtype_size;
-            const size_t &eff_sz = this->buffer.eff_size / this->dtype_size;
+            const size_t mem_sz = this->buffer.mem_size / this->dtype_size;
+            const size_t eff_sz = this->buffer.eff_size / this->dtype_size;
             printf("Buffer info:\n\t[PTR ADDR] %p\n\t[BUF SIZE] %zu byte(s)\n\t[EFF SIZE] %zu byte(s)\n", this->buffer.ptr, this->buffer.mem_size, this->buffer.eff_size);
             printf("Container info:\n\t[BUF ITEM] %zu\n\t[EFF ITEM] %zu\n", mem_sz, eff_sz);
 // print items if needed
@@ -585,7 +711,7 @@ namespace TENSOR_UTILITIES
         else
         {
             // check if we have enough 'space' (indexable range)
-            const size_t &src_effective_item_count = src.get_effective_item_count();
+            const size_t src_effective_item_count = src.get_effective_item_count();
             if (dst.get_buffer_item_count() < src_effective_item_count)
             {
                 // need to re-allocate (and error checking)

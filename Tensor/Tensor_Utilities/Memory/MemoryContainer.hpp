@@ -102,7 +102,7 @@ namespace TENSOR_UTILITIES
         virtual size_t get_buffer_size(void) const = 0;
         // gets effective buffer size (in bytes)
         virtual size_t get_effective_size(void) const = 0;
-        // gets buffer maxmum item-count (indexable upper bound, not inclusive)
+        // gets buffer maximum item-count (indexable upper bound, not inclusive)
         virtual size_t get_buffer_item_count(void) const = 0;
         // gets buffer effective item-count (effective upper bound, not inclusive)
         virtual size_t get_effective_item_count(void) const = 0;
@@ -206,7 +206,16 @@ namespace TENSOR_UTILITIES
                     return (this_result == other);
                 }
             };
-            // static memory comparsion
+            // static memory comparison
+            //
+            //     NOTE:
+            //     The block that malloc gives you is guaranteed to be aligned
+            //     so that it can hold any type of data. On GNU systems, the address
+            //     is always a multiple of eight on 32-bit systems, and a multiple
+            //     of 16 on 64-bit systems. 
+            //       -- https://sourceware.org/glibc/manual/latest/html_mono/libc.html
+            //     since we always stars from the beginning of a buffer, the memory
+            //     address should be aligned properly. (should cause no bug)
             static Cmp_result byte_cmp(const Memory &first, const Memory &other)
             {
                 // if 'first' and 'other' is the same thing
@@ -451,7 +460,7 @@ namespace TENSOR_UTILITIES
                         -> if needs new allocation?
                             (this->buf_size < other.effective_size)
                 */
-                // identicals beyond effective range, no copy needed
+                // identical beyond effective range, no copy needed
                 if (identical >= src.eff_size)
                 {
                     // set this's effective size and return
@@ -487,7 +496,7 @@ namespace TENSOR_UTILITIES
         // records size of data-type
         const size_t dtype_size{};
 
-        // constructor and de-structor
+        // constructor and destructor
     public:
         // constructor
         MemoryContainer(void) : Buffer(), buffer(), dtype_size(sizeof(T)) {}
@@ -520,7 +529,7 @@ namespace TENSOR_UTILITIES
             // return
             return;
         }
-        // de-structor
+        // destructor
         ~MemoryContainer(void) override
         {
             if (this->buffer.ptr)
@@ -678,7 +687,7 @@ namespace TENSOR_UTILITIES
         size_t get_buffer_size(void) const override { return this->buffer.mem_size; }
         // gets effective buffer size (in bytes)
         size_t get_effective_size(void) const override { return this->buffer.eff_size; }
-        // gets buffer maxmum item-count (indexable upper bound, not inclusive)
+        // gets buffer maximum item-count (indexable upper bound, not inclusive)
         size_t get_buffer_item_count(void) const override { return (this->buffer.mem_size / this->dtype_size); }
         // gets buffer effective item-count (effective upper bound, not inclusive)
         size_t get_effective_item_count(void) const override { return (this->buffer.eff_size / this->dtype_size); }
@@ -746,7 +755,7 @@ namespace TENSOR_UTILITIES
                 if (!dst.allocate(src_effective_item_count))
                     return;
             }
-            // get the ponters
+            // get the pointers
             X *dst_ptr = (X *)dst.buffer.ptr;
             const Y *src_ptr = (const Y *)src.buffer.ptr;
             // copy using operator= (assume it is usable)

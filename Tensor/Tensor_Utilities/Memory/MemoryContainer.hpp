@@ -29,6 +29,10 @@
     #ifndef BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT
         #define BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT 4
     #endif
+    // define minimum size per thread (in Byte)
+    #ifndef BUFFER_THREADED_OPERATIONS_MIN_SIZE_PER_THREAD
+        #define BUFFER_THREADED_OPERATIONS_MIN_SIZE_PER_THREAD 1024 * 1024  // 1 MB
+    #endif
     // include pthread library (C library)
     // NOTE: Windows users, you might need to install:
     //       winpthread (MinGW-w64)
@@ -293,13 +297,22 @@ namespace TENSOR_UTILITIES
                 return;
 // [THREADED] threaded copy
 #else
+                // if nothing, we return
+                if (start >= end) return;
                 // calculate total size to copy
                 size_t total_size = end - start;
                 // calculate thread to use
-                size_t thread_count = (total_size < BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT) ? 
-                                       total_size : BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT;
-                // if thread count is 0, we return (nothing to copy)
-                if (thread_count == 0) return;
+                // (also make sure we have large enough chunk for each thread)
+                size_t thread_count = total_size / BUFFER_THREADED_OPERATIONS_MIN_SIZE_PER_THREAD;
+                // make sure we don't exceed maximum thread count
+                if (thread_count > BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT)
+                    thread_count = BUFFER_THREADED_OPERATIONS_MAX_THREAD_COUNT;
+                // if thread count is now 0, fall back to single-threaded copy
+                if (thread_count <= 1)
+                {
+                    _byte_copy(start, end, dst, src);
+                    return;
+                }
                 // calculate size per thread
                 size_t size_per_thread = total_size / thread_count;
                 // calculate remaining size (for the last thread)

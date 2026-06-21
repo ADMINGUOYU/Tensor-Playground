@@ -118,7 +118,7 @@ inline bool ty::Tensor<T>::copy_to(_Tensor &dest, bool make_contiguous) const
     if (item_count == 0) { dest.erase(); return true; }
     // get the indexer for the source tensor
     TENSOR_UTILITIES::Indexer src_indexer = src_shape.generate_indexer();
-    // allocate the destination tenser
+    // allocate the destination tensor
     if (!dest.allocate_like(src_shape))
     {
         // if allocation failed, return false
@@ -804,8 +804,8 @@ inline void ty::Tensor<T>::print(unsigned int precision, size_t max_items) const
     // print a notice
     if (total_to_print < param_count)
         printf("\n... (truncated %zu items)\n", param_count - total_to_print);
-    else
-        printf("\n");
+    // else (new line must have been printed, no need here)
+    //     printf("\n");
 
     /* ---------- END PRINTING ---------- */
 

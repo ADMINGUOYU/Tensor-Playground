@@ -223,6 +223,21 @@ namespace TENSOR_UTILITIES
                     const unsigned char *ptr_othr = (const unsigned char *)other.ptr;
                     // pos where 1st difference appears -> equals to number of identical items (init to 0)
                     size_t dif = 0;
+                    
+                    // FAST PATH: Compare more bytes at a time using size_t
+                    const size_t *words_this = (const size_t *)ptr_this;
+                    const size_t *words_othr = (const size_t *)ptr_othr;
+                    size_t total_words = check_size / sizeof(size_t);
+                    // comparison loop
+                    for (; dif < total_words; ++dif)
+                        if (words_this[dif] != words_othr[dif])
+                            break;
+                    // Convert word-index back to byte-index
+                    dif *= sizeof(size_t);
+
+                    // SLOW PATH: Clean up remaining unaligned trailing bytes
+                    // or narrow down the exact byte offset where the whole word
+                    // mismatch occurred
                     // loop through every element (dif is the index of element to check)
                     for (; dif < check_size; ++dif)
                         if (ptr_this[dif] != ptr_othr[dif])

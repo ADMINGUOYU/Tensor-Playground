@@ -31,7 +31,7 @@
     #endif
     // define minimum size per thread (in Byte)
     #ifndef BUFFER_THREADED_OPERATIONS_MIN_SIZE_PER_THREAD
-        #define BUFFER_THREADED_OPERATIONS_MIN_SIZE_PER_THREAD 1024 * 1024  // 1 MB
+        #define BUFFER_THREADED_OPERATIONS_MIN_SIZE_PER_THREAD (1024 * 1024)  // 1 MB
     #endif
     // include pthread library (C library)
     // NOTE: Windows users, you might need to install:

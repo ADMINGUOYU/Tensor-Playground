@@ -276,7 +276,7 @@ namespace TENSOR_UTILITIES
 
             // byte copier (will NOT check if the indexes are in range)
             // copy range [start, end)
-            // [INTERNAL VERSION]
+            // [INTERNAL VERSION] - WILL NOT DO SAFETY CHECK (i.e. start < end)
             static void _byte_copy(size_t start, size_t end, void * dst, const void * src)
             {
                 // convert pointers
@@ -284,29 +284,61 @@ namespace TENSOR_UTILITIES
                 const unsigned char *src_bytes = (const unsigned char *)src + start;
                 size_t bytes_to_copy = end - start;
 
-                // Cast to 64-bit word pointers to copy 8 bytes at a time
-                // or 32-bit on 32-bit systems
-                size_t *dst_words = (size_t *)dst_bytes;
-                const size_t *src_words = (const size_t *)src_bytes;
-    
-                // Calculate the number of whole words to copy
-                size_t words = bytes_to_copy / sizeof(size_t);
-                // and the remaining bytes
-                size_t rem_bytes = bytes_to_copy % sizeof(size_t);
+                // align pointer to offset of (size_t)
+                // since dst and src should all be Memory::ptr allocated by malloc
+                // they should be aligned by default, adding the same 'start', meaning
+                // the same offset (NOTE: (size_t)dst % sizeof(size_t) == 0)
+                // NOTE: since sizeof(size_t) is 2^x, we only grab the x bits from the
+                //       least significant bit is okay. (& bit-wise AND)
+                size_t alignment_offset = start & (sizeof(size_t) - 1);
+                // if alignment_offset == 0, we do not want to spend 1 more iteration byte copying
+                if (alignment_offset) alignment_offset = sizeof(size_t) - alignment_offset;
+                if (alignment_offset > bytes_to_copy)
+                    alignment_offset = bytes_to_copy;  // incase that all bytes are misaligned
 
-                // Copy 8 bytes per iteration
-                for (size_t i = 0; i < words; ++i)
-                    dst_words[i] = src_words[i];
-
-                // Clean up any remaining trailing bytes
-                if (rem_bytes > 0)
+                // copy alignment part
+                if (alignment_offset)
                 {
-                    unsigned char *dst_rem = (unsigned char *)(dst_words + words);
-                    const unsigned char *src_rem = (const unsigned char *)(src_words + words);
-                    for (size_t i = 0; i < rem_bytes; ++i)
-                        dst_rem[i] = src_rem[i];
+                    // copy
+                    for (size_t i = 0; i < alignment_offset; ++i)
+                        dst_bytes[i] = src_bytes[i];
+                    // update bytes_to_copy
+                    bytes_to_copy -= alignment_offset;
+                    // advance pointers
+                    dst_bytes += alignment_offset;
+                    src_bytes += alignment_offset;
                 }
 
+                // Calculate the number of whole words to copy (integer division)
+                size_t words_to_copy = bytes_to_copy / sizeof(size_t);
+                // and the remaining bytes
+                size_t rem_bytes = bytes_to_copy & (sizeof(size_t) - 1);
+
+                // FAST COPY
+                if (words_to_copy)
+                {
+                    // Cast to 64-bit word pointers to copy 8 bytes at a time
+                    // or 32-bit on 32-bit systems
+                    size_t __attribute__((__may_alias__)) *dst_words =
+                        (size_t __attribute__((__may_alias__)) *)dst_bytes;
+                    const size_t __attribute__((__may_alias__)) *src_words =
+                        (const size_t __attribute__((__may_alias__)) *)src_bytes;
+                    // copy
+                    for (size_t i = 0; i < words_to_copy; ++i)
+                        dst_words[i] = src_words[i];
+                    // advance pointers
+                    dst_bytes = (unsigned char *)(dst_words + words_to_copy);
+                    src_bytes = (const unsigned char *)(src_words + words_to_copy);
+                }
+
+                // Clean up any remaining trailing bytes
+                if (rem_bytes)
+                {
+                    // copy
+                    for (size_t i = 0; i < rem_bytes; ++i)
+                        dst_bytes[i] = src_bytes[i];
+                }
+                
                 // return
                 return;
             }

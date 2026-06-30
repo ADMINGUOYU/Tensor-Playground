@@ -2,7 +2,7 @@
 // Description: Class to manage storage and provide efficient
 //              operative interface.
 //				< Improved version. >
-// Date: June. 21, 2026
+// Date: June. 30, 2026
 // @ADMINGUOYU
 
 #ifndef _UTILS_MEMORY_CONTAINER_HPP_
@@ -55,6 +55,13 @@
         #define BUFFER_PRINT_ITEM_PER_LINE 10
     #endif
 #endif
+
+// macro for enabling SIMD
+// This requires precompiled SIMD library
+// We will include "../../SIMD/simd.h" header here
+#ifdef BUFFER_ENABLE_SIMD
+    #include "../../SIMD/simd.h"
+#endif // BUFFER_ENABLE_SIMD
 
 namespace TENSOR_UTILITIES
 {
@@ -279,11 +286,15 @@ namespace TENSOR_UTILITIES
             // [INTERNAL VERSION] - WILL NOT DO SAFETY CHECK (i.e. start < end)
             static void _byte_copy(size_t start, size_t end, void * dst, const void * src)
             {
+                // calculate size to copy
+                size_t bytes_to_copy = end - start;
+
                 // convert pointers
                 unsigned char *dst_bytes = (unsigned char *)dst + start;
                 const unsigned char *src_bytes = (const unsigned char *)src + start;
-                size_t bytes_to_copy = end - start;
 
+// [NORMAL] using size_t to perform batch copying
+#ifndef BUFFER_ENABLE_SIMD
                 // align pointer to offset of (size_t)
                 // since dst and src should all be Memory::ptr allocated by malloc
                 // they should be aligned by default, adding the same 'start', meaning
@@ -338,9 +349,18 @@ namespace TENSOR_UTILITIES
                     for (size_t i = 0; i < rem_bytes; ++i)
                         dst_bytes[i] = src_bytes[i];
                 }
-                
+
                 // return
                 return;
+
+// [SIMD] uses precompiled external C library
+#else
+                // use SIMD function
+                simd_copy_any(dst_bytes, src_bytes, bytes_to_copy);
+
+                // return
+                return;
+#endif
             }
             // byte copy wrapper (enable multi-threading)
             static void byte_copy(size_t start, size_t end, void * dst, const void * src)

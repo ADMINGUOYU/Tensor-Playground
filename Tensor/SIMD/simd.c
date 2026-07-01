@@ -112,7 +112,7 @@ addresses_aligned(const void *ptr_1, const void *ptr_2)
  * @brief [DEBUG] Gets the current System SIMD vector size in bytes
  * @return size_t The vector size in bytes
  */
-size_t simd_get_vecsize(void)
+inline size_t simd_get_vecsize(void)
 {
     return (size_t)VECTOR_BYTES;
 }

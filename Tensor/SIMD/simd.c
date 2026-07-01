@@ -277,3 +277,92 @@ void simd_copy_any(void *dest, const void *src, size_t length)
         return;        
     }
 }
+
+/**
+ * @brief Vectorized FILL (any generic type)
+ * @param dest pointer to destination array
+ * @param src pointer to source VALUEs, the array should be in length that
+ *        VECTOR_BYTES could be divided by.
+ *        i.e. if VECTOR_BYTES = 16, src should be in length of 1, 2, 4, 8, or 16 bytes
+ *        You could get the size of VECTOR_BYTES by calling simd_get_vecsize()
+ * @param dest_length Length of the destination array (in bytes)
+ * @param src_length Length of the source array (in bytes)
+ * @note We will help you to do memory alignment, the final bits will be wrapped
+ *       around to the starting values of the src array
+ * @example VECTOR_BYTES = 16, dest_length = 20,
+ *          src = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}
+ *         dest = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,1,2,3,4}
+ */
+void simd_fill_any(void *dest, const void *src, size_t dest_length, size_t src_length)
+{
+    // check if src_length is valid
+    if (src_length == 0 ||
+        src_length > VECTOR_BYTES ||
+        (VECTOR_BYTES % src_length))
+        return;
+
+    // Calculate destination alignment first
+    // we should copy the first couple of misaligned bytes first
+    simd_memory_alignment_info
+    dest_alignment = calculate_memory_alignment(dest, (unsigned char *)dest + dest_length - 1);
+
+    // Prepare a indexer of the source array first
+    size_t src_index = 0;
+
+    // handle the unaligned start portion of the destination
+    unsigned char *d = (unsigned char *)dest;
+    const unsigned char *s = (const unsigned char *)src;
+    for (size_t i = 0; i < dest_alignment.start_offset; ++i)
+    {
+        // assign the value from src to dest
+        d[i] = s[src_index];
+        // increment the src_index and wrap around if necessary
+        // as src_length is guaranteed to be a divisor of VECTOR_BYTES,
+        // and VECTOR_BYTES is a power of 2, we can use bitwise AND to wrap around
+        src_index = (src_index + 1) & (src_length - 1);
+    }
+
+    // Create a SIMD (aligned) vector from the source array
+    // staring from the current src_index, we will fill the rest of the vector
+    // do not initialise the values as we will fill it later
+    vany src_vector;
+    for (size_t i = 0; i < VECTOR_BYTES; ++i)
+    {
+        // assign the value from src to src_vector
+        src_vector[i] = s[src_index];
+        // increment the src_index and wrap around if necessary
+        src_index = (src_index + 1) & (src_length - 1);
+    }
+
+    // increment the destination pointer to point to the aligned portion
+    d += dest_alignment.start_offset;
+
+    // Handle the aligned portion of the destination using SIMD
+    size_t aligned_length = dest_alignment.aligned_bytes;
+    size_t simd_iterations = aligned_length / VECTOR_BYTES;
+
+    // cast to SIMD vector types -> vany (since we have aligned pointers)
+    vany *vd = (vany *)d;
+
+    // Perform the SIMD fill
+    for (size_t i = 0; i < simd_iterations; ++i)
+        vd[i] = src_vector;
+
+    // Update the destination pointer to point to the end of the aligned portion
+    d += aligned_length;
+
+    // reset the src_index to 0 to fill the remaining bytes
+    src_index = 0;
+
+    // Handle the unaligned end portion of the destination
+    for (size_t i = 0; i < dest_alignment.end_offset; ++i)
+    {
+        // assign the value from src to dest
+        d[i] = s[src_index];
+        // increment the src_index and wrap around if necessary
+        src_index = (src_index + 1) & (src_length - 1);
+    }
+    
+    // return
+    return;    
+}

@@ -599,12 +599,28 @@ namespace TENSOR_UTILITIES
                 return;
             // get pointer
             T *ptr = (T *)this->buffer.ptr;
+
+// [NORMAL] using size_t to perform batch copying
+#ifndef BUFFER_ENABLE_SIMD
+
             // loop and init
             const size_t count = this->buffer.mem_size / this->dtype_size;
             for (size_t i = 0; i < count; ++i)
                 ptr[i] = T{};
             // return
             return;
+
+// [SIMD] uses precompiled external C library
+#else
+
+            // create a single default init value
+            T default_value = T{ };
+            // Use SIMD function
+            simd_fill_any(ptr, &default_value, this->buffer.mem_size, sizeof(T));
+            // return
+            return;
+
+#endif
         }
         // re-generate buffer
         bool allocate(size_t num_of_item) override

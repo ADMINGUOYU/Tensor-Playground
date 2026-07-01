@@ -3,7 +3,8 @@
 Experiencing Tensors and Mathematics -- **A purely C++ implementation of the most fundamental aspects of Tensors.**
 
 > [!NOTE]
-> We designed it to be a FULL HEADER library (for now).
+> We designed it to be a FULL HEADER library (for now).\
+> The SIMD library is precompiled and linked to the project. (C language C99 standard)
 
 <!-- How-tos -->
 ## How to use
@@ -32,7 +33,7 @@ ty::Tensor<int> int_tensor { };
   size_t shape[] = { 6, 4, 8 };
   tensor.allocate(shape, sizeof(shape)/sizeof(size_t));
 }
-// This creates makes the tensor shaped (6, 4, 8)
+// This creates a tensor shaped (6, 4, 8)
 // NOTE: { } scoped the 'shape' array
 ```
 
@@ -109,7 +110,8 @@ tensor.get_buffer().print();
   - [x] Buffer `append()` and `shrink()` (considered useless?)
   - [x] Buffer debug printout
   - [ ] Promote realloc and better memory allocation efficiency
-  - [ ] Parallelism?
+  - [ ] Support SIMD
+  - [ ] Parallelism should be revised
 - [ ] ./TensorDescription
   - [x] General Shape class
     - [x] Re-implement using MemoryContainer(Buffer) as backend
@@ -123,3 +125,7 @@ tensor.get_buffer().print();
     - [x] Internal state management (getter and setter API)
     - [x] `next()` function to advance iterator
     - [x] `next()` able to reverse traversal
+
+#### SIMD (single instruction, multiple data) - precompiled C library (Tensor/SIMD)
+- [x] SIMD copying
+- [x] SIMD memory filling
